@@ -23,7 +23,7 @@ def run_ai_check(
     if provider == "auto":
         try:
             return run_ollama_check(user_content, strict=strict, fix=fix, model=model)
-        except ProviderUnavailable as ollama_exc:
+        except (ProviderUnavailable, AIResponseError) as ollama_exc:
             try:
                 return run_lmstudio_check(user_content, strict=strict, fix=fix, model=model)
             except ProviderUnavailable as lmstudio_exc:

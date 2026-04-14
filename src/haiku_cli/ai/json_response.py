@@ -7,8 +7,6 @@ from typing import Any
 from haiku_cli.ai import AIResponseError
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
-
-
 def _normalize_llm_json_text(text: str) -> str:
     """Repair common non-standard JSON emitted by local LLMs before json.loads."""
     t = text.strip()
