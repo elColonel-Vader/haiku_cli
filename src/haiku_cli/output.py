@@ -33,7 +33,18 @@ def render_analysis(analysis: HaikuAnalysis, *, debug: bool = False) -> None:
         console.print("[red]✗ Struktur: kein gültiges 5-7-5[/red]")
 
 
-def render_ai_feedback(result: dict[str, Any], *, strict: bool = False) -> None:
+def _print_criterion(console: Console, label: str, valid: bool, detail: str) -> None:
+    symbol, _ = _status_markup(valid)
+    console.print(f"{symbol} {label}: {detail}")
+
+
+def render_ai_feedback(
+    result: dict[str, Any],
+    analysis: HaikuAnalysis,
+    *,
+    strict: bool = False,
+    computed_score: int,
+) -> None:
     console = Console()
 
     kigo = result.get("kigo") or {}
@@ -42,28 +53,44 @@ def render_ai_feedback(result: dict[str, Any], *, strict: bool = False) -> None:
     kireji = result.get("kireji") or {}
     suggestions = result.get("suggestions") or []
 
-    console.print(
-        "[green]✓[/green] Kigo:"
-        f" {'vorhanden' if kigo.get('present') else 'nicht erkannt'}"
-        + (f" ({kigo.get('word')}, {kigo.get('season')})" if kigo.get("word") else "")
+    _print_criterion(
+        console,
+        "Silben (Programm)",
+        analysis.valid_structure,
+        "gültiges 5-7-5" if analysis.valid_structure else "kein gültiges 5-7-5",
     )
-    console.print(
-        "[green]✓[/green] Kireji:"
-        f" {'vorhanden' if kireji.get('present') else 'nicht erkannt'}"
-        + (f" - {kireji.get('description')}" if kireji.get("description") else "")
+    _print_criterion(
+        console,
+        "Kigo",
+        bool(kigo.get("present")),
+        ("vorhanden" if kigo.get("present") else "nicht erkannt")
+        + (f" ({kigo.get('word')}, {kigo.get('season')})" if kigo.get("word") else ""),
     )
-    console.print(
-        "[green]✓[/green] Naturbild:"
-        f" {'ja' if result.get('nature_imagery') else 'nein'}"
+    _print_criterion(
+        console,
+        "Kireji",
+        bool(kireji.get("present")),
+        ("vorhanden" if kireji.get("present") else "nicht erkannt")
+        + (f" - {kireji.get('description')}" if kireji.get("description") else ""),
     )
-    console.print(
-        "[green]✓[/green] Gegenwart:"
-        f" {'ja' if result.get('present_tense') else 'nein'}"
+    _print_criterion(
+        console,
+        "Naturbild",
+        bool(result.get("nature_imagery")),
+        "ja" if result.get("nature_imagery") else "nein",
     )
-    console.print(
-        "[green]✓[/green] Gegenüberstellung:"
-        f" {'ja' if juxtaposition.get('present') else 'nein'}"
-        + (f" - {juxtaposition.get('description')}" if juxtaposition.get("description") else "")
+    _print_criterion(
+        console,
+        "Gegenwart",
+        bool(result.get("present_tense")),
+        "ja" if result.get("present_tense") else "nein",
+    )
+    _print_criterion(
+        console,
+        "Gegenüberstellung",
+        bool(juxtaposition.get("present")),
+        ("ja" if juxtaposition.get("present") else "nein")
+        + (f" - {juxtaposition.get('description')}" if juxtaposition.get("description") else ""),
     )
     if mono_no_aware.get("present") or mono_no_aware.get("description"):
         console.print(
@@ -71,9 +98,7 @@ def render_ai_feedback(result: dict[str, Any], *, strict: bool = False) -> None:
             f" {mono_no_aware.get('description') or 'vorhanden'}"
         )
 
-    score = result.get("overall_score")
-    if score is not None:
-        console.print(f"[cyan]Gesamtwertung:[/cyan] {score}/10")
+    console.print(f"[cyan]Gesamtwertung:[/cyan] {computed_score}/10")
 
     if suggestions:
         heading = "Vorschläge" if strict else "Hinweise"

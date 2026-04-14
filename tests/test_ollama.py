@@ -20,10 +20,11 @@ def test_run_ollama_check_uses_gemma_default(monkeypatch) -> None:
     monkeypatch.setitem(sys.modules, "ollama", SimpleNamespace(Client=FakeClient))
 
     result = run_ollama_check(
-        ("Kirschblüten fallen", "leiser Regen über Moos", "Frühling atmet still"),
+        "Promptinhalt",
         strict=False,
         fix=False,
     )
 
     assert result == {}
     assert calls[0]["model"] == DEFAULT_OLLAMA_MODEL
+    assert calls[0]["messages"][1]["content"] == "Promptinhalt"

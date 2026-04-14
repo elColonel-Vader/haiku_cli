@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from click.testing import CliRunner
 
+import haiku_cli.cli as cli_module
 from haiku_cli.cli import main
 
 VALID_HAIKU = "\n".join(
@@ -56,3 +57,54 @@ def test_cli_help_uses_real_umlauts() -> None:
     assert result.exit_code == 0
     assert "Führt zusätzlich eine KI-Haikuprüfung aus." in result.output
     assert "Silbenaufschlüsselung" in result.output
+
+
+def test_cli_uses_computed_score_and_filters_structure_contradictions(monkeypatch) -> None:
+    runner = CliRunner()
+
+    def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
+        assert analysis.valid_structure is True
+        return {
+            "kigo": {"present": True, "word": "Frühling", "season": "Frühling"},
+            "kireji": {"present": True, "description": "Klarer Schnitt"},
+            "present_tense": True,
+            "nature_imagery": True,
+            "juxtaposition": {"present": True, "description": "Blüte gegen Stille"},
+            "mono_no_aware": {"present": False, "description": ""},
+            "overall_score": 3,
+            "suggestions": [
+                "Nicht streng 5-7-5, bitte Silben prüfen.",
+                "Die Gegenüberstellung könnte noch knapper formuliert werden.",
+            ],
+        }
+
+    monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
+
+    result = runner.invoke(main, ["--check"], input=VALID_HAIKU)
+    assert result.exit_code == 0
+    assert "Gesamtwertung: 10/10" in result.output
+    assert "Nicht streng 5-7-5" not in result.output
+    assert "Die Gegenüberstellung könnte noch knapper formuliert werden." in result.output
+
+
+def test_cli_renders_failed_criteria_with_cross(monkeypatch) -> None:
+    runner = CliRunner()
+
+    def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
+        return {
+            "kigo": {"present": False, "word": "", "season": ""},
+            "kireji": {"present": False, "description": ""},
+            "present_tense": False,
+            "nature_imagery": True,
+            "juxtaposition": {"present": False, "description": ""},
+            "mono_no_aware": {"present": False, "description": ""},
+            "suggestions": [],
+        }
+
+    monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
+
+    result = runner.invoke(main, ["--check"], input=VALID_HAIKU)
+    assert result.exit_code == 0
+    assert "✗ Kigo: nicht erkannt" in result.output
+    assert "✗ Kireji: nicht erkannt" in result.output
+    assert "✓ Naturbild: ja" in result.output

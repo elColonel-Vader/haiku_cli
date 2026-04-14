@@ -5,11 +5,11 @@ from typing import Any
 
 from haiku_cli.ai import ProviderUnavailable
 from haiku_cli.ai.json_response import parse_model_json_dict
-from haiku_cli.ai.prompts import build_system_prompt, build_user_prompt
+from haiku_cli.ai.prompts import build_system_prompt
 
 
 def run_claude_check(
-    lines: tuple[str, str, str],
+    user_content: str,
     *,
     strict: bool,
     fix: bool,
@@ -37,7 +37,7 @@ def run_claude_check(
             messages=[
                 {
                     "role": "user",
-                    "content": build_user_prompt(lines),
+                    "content": user_content,
                 }
             ],
         )

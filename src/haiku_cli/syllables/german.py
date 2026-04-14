@@ -70,6 +70,12 @@ def _hyphenate(word: str) -> str:
 def _count_pyphen(word: str) -> tuple[int, str]:
     inserted = _hyphenate(word)
     count = len([part for part in inserted.split("-") if part])
+    # Pyphen may split ...-ki-ert (maskiert) into three hyphen segments where spoken
+    # German has two syllables (mas-kiert). Same for ski-ert. Match a hyphenated
+    # "i-ert" tail, not plain "-iert" (sortiert, variiert).
+    if re.search(r"i-ert$", inserted, re.IGNORECASE):
+        count = max(1, count - 1)
+        inserted = re.sub(r"i-ert$", "iert", inserted, flags=re.IGNORECASE)
     return count, inserted
 
 

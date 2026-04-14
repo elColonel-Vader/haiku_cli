@@ -4,13 +4,13 @@ from typing import Any
 
 from haiku_cli.ai import ProviderUnavailable
 from haiku_cli.ai.json_response import parse_model_json_dict
-from haiku_cli.ai.prompts import build_system_prompt, build_user_prompt
+from haiku_cli.ai.prompts import build_system_prompt
 
 DEFAULT_OLLAMA_MODEL = "gemma4:e4b"
 
 
 def run_ollama_check(
-    lines: tuple[str, str, str],
+    user_content: str,
     *,
     strict: bool,
     fix: bool,
@@ -31,7 +31,7 @@ def run_ollama_check(
             model=selected_model,
             messages=[
                 {"role": "system", "content": build_system_prompt(strict=strict, fix=fix)},
-                {"role": "user", "content": build_user_prompt(lines)},
+                {"role": "user", "content": user_content},
             ],
             format="json",
             options={"temperature": 0.1},
