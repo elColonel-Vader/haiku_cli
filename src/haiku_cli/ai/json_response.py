@@ -9,6 +9,46 @@ from haiku_cli.ai import AIResponseError
 _FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 
 
+def _normalize_llm_json_text(text: str) -> str:
+    """Repair common non-standard JSON emitted by local LLMs before json.loads."""
+    t = text.strip()
+    t = (
+        t.replace("\u201c", '"')
+        .replace("\u201d", '"')
+        .replace("\u201e", '"')
+        .replace("\u201a", "'")
+        .replace("\u2018", "'")
+        .replace("\u2019", "'")
+    )
+    t = re.sub(r"\bTrue\b", "true", t)
+    t = re.sub(r"\bFalse\b", "false", t)
+    t = re.sub(r"\bNone\b", "null", t)
+    t = re.sub(r"\bundefined\b", "null", t)
+    prev = None
+    while prev != t:
+        prev = t
+        t = re.sub(r",(\s*})", r"\1", t)
+        t = re.sub(r",(\s*])", r"\1", t)
+    return t
+
+
+def _coerce_parsed_json(parsed: Any) -> dict[str, Any] | None:
+    """Accept a dict, or a one-element list wrapping a dict, or a JSON string of an object."""
+    if isinstance(parsed, dict):
+        return parsed
+    if isinstance(parsed, list) and len(parsed) == 1 and isinstance(parsed[0], dict):
+        return parsed[0]
+    if isinstance(parsed, str):
+        s = parsed.strip()
+        if s.startswith("{"):
+            try:
+                inner = json.loads(_normalize_llm_json_text(s))
+            except json.JSONDecodeError:
+                return None
+            return _coerce_parsed_json(inner)
+    return None
+
+
 def _candidates_from_fences(text: str) -> list[str]:
     return [m.group(1).strip() for m in _FENCE_RE.finditer(text)]
 
@@ -62,20 +102,24 @@ def parse_model_json_dict(raw: str, *, source: str) -> dict[str, Any]:
         candidate = candidate.strip()
         if not candidate:
             continue
+        normalized = _normalize_llm_json_text(candidate)
         try:
-            parsed = json.loads(candidate)
+            parsed = json.loads(normalized)
         except json.JSONDecodeError:
             continue
-        if isinstance(parsed, dict):
-            return parsed
+        coerced = _coerce_parsed_json(parsed)
+        if coerced is not None:
+            return coerced
 
     extracted = _extract_first_json_object(cleaned)
     if extracted:
+        normalized = _normalize_llm_json_text(extracted)
         try:
-            parsed = json.loads(extracted)
+            parsed = json.loads(normalized)
         except json.JSONDecodeError as exc:
             raise AIResponseError(f"{source} hat kein gültiges JSON geliefert.") from exc
-        if isinstance(parsed, dict):
-            return parsed
+        coerced = _coerce_parsed_json(parsed)
+        if coerced is not None:
+            return coerced
 
     raise AIResponseError(f"{source} hat kein gültiges JSON geliefert.")

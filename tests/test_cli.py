@@ -57,6 +57,8 @@ def test_cli_help_uses_real_umlauts() -> None:
     assert result.exit_code == 0
     assert "Führt zusätzlich eine KI-Haikuprüfung aus." in result.output
     assert "Silbenaufschlüsselung" in result.output
+    assert "[default:" in result.output and "auto]" in result.output
+    assert "lmstudio" in result.output
 
 
 def test_cli_uses_computed_score_and_filters_structure_contradictions(monkeypatch) -> None:
@@ -82,7 +84,9 @@ def test_cli_uses_computed_score_and_filters_structure_contradictions(monkeypatc
 
     result = runner.invoke(main, ["--check"], input=VALID_HAIKU)
     assert result.exit_code == 0
-    assert "Gesamtwertung: 10/10" in result.output
+    assert "Form: 2/2" in result.output
+    assert "Haiku-Qualität: 8/8" in result.output
+    assert "Gesamtwertung: 9/10" in result.output
     assert "Nicht streng 5-7-5" not in result.output
     assert "Die Gegenüberstellung könnte noch knapper formuliert werden." in result.output
 
@@ -108,3 +112,45 @@ def test_cli_renders_failed_criteria_with_cross(monkeypatch) -> None:
     assert "✗ Kigo: nicht erkannt" in result.output
     assert "✗ Kireji: nicht erkannt" in result.output
     assert "✓ Naturbild: ja" in result.output
+
+
+def test_cli_uses_auto_provider_by_default(monkeypatch) -> None:
+    runner = CliRunner()
+
+    def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
+        assert provider == "auto"
+        return {
+            "kigo": {"present": False, "word": "", "season": ""},
+            "kireji": {"present": False, "description": ""},
+            "present_tense": False,
+            "nature_imagery": False,
+            "juxtaposition": {"present": False, "description": ""},
+            "mono_no_aware": {"present": False, "description": ""},
+            "suggestions": [],
+        }
+
+    monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
+
+    result = runner.invoke(main, ["--check"], input=VALID_HAIKU)
+    assert result.exit_code == 0
+
+
+def test_cli_accepts_explicit_lmstudio_provider(monkeypatch) -> None:
+    runner = CliRunner()
+
+    def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
+        assert provider == "lmstudio"
+        return {
+            "kigo": {"present": False, "word": "", "season": ""},
+            "kireji": {"present": False, "description": ""},
+            "present_tense": False,
+            "nature_imagery": False,
+            "juxtaposition": {"present": False, "description": ""},
+            "mono_no_aware": {"present": False, "description": ""},
+            "suggestions": [],
+        }
+
+    monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
+
+    result = runner.invoke(main, ["--check", "--provider", "lmstudio"], input=VALID_HAIKU)
+    assert result.exit_code == 0

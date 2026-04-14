@@ -13,7 +13,7 @@ from haiku_cli.ai.suggestions import sanitize_suggestions
 from haiku_cli.input import read_haiku_text
 from haiku_cli.output import render_ai_feedback, render_analysis, render_error, render_warnings
 from haiku_cli.parser import ParseError, parse_haiku
-from haiku_cli.scoring import compute_score
+from haiku_cli.scoring import ScoreBreakdown, compute_score
 from haiku_cli.validate import validate_haiku
 
 
@@ -26,10 +26,10 @@ from haiku_cli.validate import validate_haiku
 @click.option("--debug", is_flag=True, help="Zeigt Silbenaufschlüsselung pro Wort.")
 @click.option(
     "--provider",
-    type=click.Choice(["ollama", "claude"], case_sensitive=False),
-    default="ollama",
+    type=click.Choice(["auto", "ollama", "lmstudio", "claude"], case_sensitive=False),
+    default="auto",
     show_default=True,
-    help="KI-Provider für --check und --fix.",
+    help="KI-Provider für --check und --fix. auto prüft zuerst Ollama, dann LM Studio.",
 )
 @click.option("--model", default=None, help="Optionaler Modellname für den KI-Provider.")
 def main(
@@ -52,7 +52,7 @@ def main(
     analysis = validate_haiku(lines)
     warnings: list[str] = []
     ai_result: dict | None = None
-    computed_score: int | None = None
+    score_breakdown: ScoreBreakdown | None = None
 
     if check or fix or strict:
         try:
@@ -68,19 +68,21 @@ def main(
                 list(ai_result.get("suggestions") or []),
                 valid_structure=analysis.valid_structure,
             )
-            computed_score = compute_score(analysis, ai_result)
-            ai_result["overall_score"] = computed_score
+            score_breakdown = compute_score(
+                analysis, ai_result, suggestions=list(ai_result.get("suggestions") or [])
+            )
+            ai_result["overall_score"] = score_breakdown.overall
         except (ProviderUnavailable, AIResponseError) as exc:
             warnings.append(str(exc))
 
     if not quiet:
         render_analysis(analysis, debug=debug)
-        if ai_result is not None:
+        if ai_result is not None and score_breakdown is not None:
             render_ai_feedback(
                 ai_result,
                 analysis,
                 strict=strict,
-                computed_score=computed_score if computed_score is not None else 0,
+                score_breakdown=score_breakdown,
             )
         render_warnings(warnings)
 

@@ -5,6 +5,7 @@ from typing import Any
 from rich.console import Console
 
 from haiku_cli.models import HaikuAnalysis
+from haiku_cli.scoring import ScoreBreakdown
 
 
 def _status_markup(valid: bool) -> tuple[str, str]:
@@ -43,7 +44,7 @@ def render_ai_feedback(
     analysis: HaikuAnalysis,
     *,
     strict: bool = False,
-    computed_score: int,
+    score_breakdown: ScoreBreakdown,
 ) -> None:
     console = Console()
 
@@ -98,7 +99,14 @@ def render_ai_feedback(
             f" {mono_no_aware.get('description') or 'vorhanden'}"
         )
 
-    console.print(f"[cyan]Gesamtwertung:[/cyan] {computed_score}/10")
+    console.print(
+        f"[cyan]Form:[/cyan] {score_breakdown.form}/{ScoreBreakdown.FORM_MAX}"
+    )
+    console.print(
+        f"[cyan]Haiku-Qualität:[/cyan] {score_breakdown.quality}/"
+        f"{ScoreBreakdown.QUALITY_MAX}"
+    )
+    console.print(f"[cyan]Gesamtwertung:[/cyan] {score_breakdown.overall}/10")
 
     if suggestions:
         heading = "Vorschläge" if strict else "Hinweise"

@@ -15,15 +15,28 @@ def _analysis(valid_structure: bool) -> HaikuAnalysis:
     )
 
 
-def test_compute_score_full_marks() -> None:
-    result = {
+def _full_result() -> dict:
+    return {
         "kigo": {"present": True},
         "kireji": {"present": True},
         "nature_imagery": True,
         "present_tense": True,
         "juxtaposition": {"present": True},
     }
-    assert compute_score(_analysis(True), result) == 10
+
+
+def test_compute_score_full_marks() -> None:
+    b = compute_score(_analysis(True), _full_result())
+    assert b.form == 2
+    assert b.quality == 8
+    assert b.raw_total == 10
+    assert b.overall == 10
+
+
+def test_compute_score_caps_overall_when_perfect_but_hints_remain() -> None:
+    b = compute_score(_analysis(True), _full_result(), suggestions=["Noch etwas"])
+    assert b.raw_total == 10
+    assert b.overall == 9
 
 
 def test_compute_score_zero_when_nothing_matches() -> None:
@@ -34,7 +47,10 @@ def test_compute_score_zero_when_nothing_matches() -> None:
         "present_tense": False,
         "juxtaposition": {"present": False},
     }
-    assert compute_score(_analysis(False), result) == 0
+    b = compute_score(_analysis(False), result)
+    assert b.form == 0
+    assert b.quality == 0
+    assert b.overall == 0
 
 
 def test_compute_score_partial() -> None:
@@ -45,4 +61,8 @@ def test_compute_score_partial() -> None:
         "present_tense": False,
         "juxtaposition": {"present": True},
     }
-    assert compute_score(_analysis(True), result) == 8
+    b = compute_score(_analysis(True), result)
+    assert b.form == 2
+    assert b.quality == 6
+    assert b.raw_total == 8
+    assert b.overall == 8
