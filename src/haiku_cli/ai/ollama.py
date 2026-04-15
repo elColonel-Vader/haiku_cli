@@ -8,7 +8,7 @@ from haiku_cli.ai import ProviderUnavailable
 from haiku_cli.ai.json_response import parse_model_json_dict
 from haiku_cli.ai.prompts import build_system_prompt
 
-DEFAULT_OLLAMA_MODEL = "gemma4:e4b"
+DEFAULT_OLLAMA_MODEL = "deepseek-r1:14b"
 DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 
 

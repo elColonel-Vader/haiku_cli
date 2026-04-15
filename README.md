@@ -9,7 +9,7 @@ KI-Analyse.
 - `pip` oder `pipx`
 - Optional für lokale KI-Checks (siehe Abschnitt **KI-Prüfung**):
   - **Ollama** (Standard bei `--provider auto`) oder **LM Studio** (OpenAI-kompatibler Local Server)
-  - bei Ollama: laufender Dienst und ein passendes Modell (Projektstandard: `gemma4:e4b`)
+  - bei Ollama: laufender Dienst und ein passendes Modell (Projektstandard: `deepseek-r1:14b`)
 
 Das Projekt ist als normales Python-Paket gebaut und funktioniert auf
 macOS, Linux und Windows.
@@ -175,7 +175,7 @@ haiku --check --provider auto
 Standardmodell im Projekt:
 
 ```text
-gemma4:e4b
+deepseek-r1:14b
 ```
 
 Ollama starten:
@@ -193,7 +193,7 @@ ollama list
 Falls es fehlt:
 
 ```bash
-ollama pull gemma4:e4b
+ollama pull deepseek-r1:14b
 ```
 
 Dann:
@@ -208,7 +208,7 @@ Weitere Varianten:
 haiku --check --provider ollama
 haiku --fix
 haiku --strict
-haiku --model gemma4:e4b
+haiku --model deepseek-r1:14b
 ```
 
 ### LM Studio

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from haiku_cli.ai.ollama import DEFAULT_OLLAMA_MODEL, run_ollama_check
 
 
-def test_run_ollama_check_uses_gemma_default(monkeypatch) -> None:
+def test_run_ollama_check_uses_default_model(monkeypatch) -> None:
     calls: list[dict] = []
 
     class FakeClient:
@@ -64,6 +64,6 @@ def test_run_ollama_check_falls_back_to_http_when_package_missing(monkeypatch) -
     assert captured["url"].endswith("/api/chat")
     assert captured["method"] == "POST"
     assert captured["timeout"] == 120
-    assert '"model": "gemma4:e4b"' in captured["payload"]
+    assert f'"model": "{DEFAULT_OLLAMA_MODEL}"' in captured["payload"]
     assert '"format": "json"' in captured["payload"]
     assert '"stream": false' in captured["payload"]
