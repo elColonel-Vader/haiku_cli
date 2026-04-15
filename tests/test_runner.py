@@ -18,12 +18,12 @@ def _analysis() -> HaikuAnalysis:
     )
 
 
-def test_run_ai_check_auto_falls_back_to_lmstudio(monkeypatch) -> None:
+def test_run_ai_check_auto_uses_lmstudio_when_available(monkeypatch) -> None:
     calls: list[str] = []
 
     def fake_ollama(user_content, *, strict, fix, model):
         calls.append("ollama")
-        raise ProviderUnavailable("Ollama down")
+        return {"kigo": {"present": False}}
 
     def fake_lmstudio(user_content, *, strict, fix, model):
         calls.append("lmstudio")
@@ -42,7 +42,58 @@ def test_run_ai_check_auto_falls_back_to_lmstudio(monkeypatch) -> None:
     )
 
     assert result["kigo"]["present"] is True
-    assert calls == ["ollama", "lmstudio"]
+    assert calls == ["lmstudio"]
+
+
+def test_run_ai_check_auto_falls_back_to_ollama(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_ollama(user_content, *, strict, fix, model):
+        calls.append("ollama")
+        return {"kigo": {"present": True}}
+
+    def fake_lmstudio(user_content, *, strict, fix, model):
+        calls.append("lmstudio")
+        raise ProviderUnavailable("LM Studio down")
+
+    monkeypatch.setattr(runner_module, "run_ollama_check", fake_ollama)
+    monkeypatch.setattr(runner_module, "run_lmstudio_check", fake_lmstudio)
+
+    result = runner_module.run_ai_check(
+        ("eins", "zwei", "drei"),
+        _analysis(),
+        provider="auto",
+        strict=False,
+        fix=False,
+        model=None,
+    )
+
+    assert result["kigo"]["present"] is True
+    assert calls == ["lmstudio", "ollama"]
+
+
+def test_evaluate_strict_result_accepts_weak_and_strong_levels() -> None:
+    result = {
+        "kigo": {"level": "weak"},
+        "kireji": {"level": "strong"},
+        "present_tense": {"level": "weak"},
+        "nature_imagery": {"level": "strong"},
+        "juxtaposition": {"level": "weak"},
+    }
+
+    assert runner_module.evaluate_strict_result(result) is True
+
+
+def test_evaluate_strict_result_rejects_absent_core_criteria() -> None:
+    result = {
+        "kigo": {"level": "absent"},
+        "kireji": {"level": "strong"},
+        "present_tense": {"level": "weak"},
+        "nature_imagery": {"level": "strong"},
+        "juxtaposition": {"level": "weak"},
+    }
+
+    assert runner_module.evaluate_strict_result(result) is False
 
 
 def test_run_ai_check_auto_reports_both_local_failures(monkeypatch) -> None:
@@ -69,16 +120,16 @@ def test_run_ai_check_auto_reports_both_local_failures(monkeypatch) -> None:
     assert "LM Studio" in str(exc.value)
 
 
-def test_run_ai_check_auto_falls_back_on_ollama_json_error(monkeypatch) -> None:
+def test_run_ai_check_auto_falls_back_on_lmstudio_json_error(monkeypatch) -> None:
     calls: list[str] = []
 
     def fake_ollama(user_content, *, strict, fix, model):
         calls.append("ollama")
-        raise AIResponseError("Ollama hat kein gültiges JSON geliefert.")
+        return {"kigo": {"present": True}}
 
     def fake_lmstudio(user_content, *, strict, fix, model):
         calls.append("lmstudio")
-        return {"kigo": {"present": True}}
+        raise AIResponseError("LM Studio hat kein gültiges JSON geliefert.")
 
     monkeypatch.setattr(runner_module, "run_ollama_check", fake_ollama)
     monkeypatch.setattr(runner_module, "run_lmstudio_check", fake_lmstudio)
@@ -93,4 +144,4 @@ def test_run_ai_check_auto_falls_back_on_ollama_json_error(monkeypatch) -> None:
     )
 
     assert result["kigo"]["present"] is True
-    assert calls == ["ollama", "lmstudio"]
+    assert calls == ["lmstudio", "ollama"]

@@ -22,13 +22,11 @@ class _FakeResponse:
         return None
 
 
-def test_run_lmstudio_check_uses_first_loaded_model(monkeypatch) -> None:
+def test_run_lmstudio_check_uses_default_model(monkeypatch) -> None:
     calls: list[tuple[str, str | None]] = []
 
     def fake_urlopen(req, timeout=0):
         calls.append((req.full_url, req.data.decode("utf-8") if req.data else None))
-        if req.full_url.endswith("/models"):
-            return _FakeResponse({"data": [{"id": "qwen-local"}]})
         if req.full_url.endswith("/chat/completions"):
             return _FakeResponse(
                 {
@@ -48,8 +46,8 @@ def test_run_lmstudio_check_uses_first_loaded_model(monkeypatch) -> None:
     result = run_lmstudio_check("Prompt", strict=False, fix=False)
 
     assert result["kigo"]["present"] is True
-    assert calls[0][0].endswith("/models")
-    assert '"model": "qwen-local"' in calls[1][1]
+    assert calls[0][0].endswith("/chat/completions")
+    assert '"model": "google/gemma-4-e4b"' in calls[0][1]
 
 
 def test_run_lmstudio_check_raises_when_server_unavailable(monkeypatch) -> None:

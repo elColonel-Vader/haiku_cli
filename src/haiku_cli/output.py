@@ -5,11 +5,42 @@ from typing import Any
 from rich.console import Console
 
 from haiku_cli.models import HaikuAnalysis
-from haiku_cli.scoring import ScoreBreakdown
+from haiku_cli.scoring import (
+    ScoreBreakdown,
+    get_image_coherence_level,
+    get_juxtaposition_level,
+    get_kigo_level,
+    get_kireji_level,
+    get_mono_no_aware_level,
+    get_nature_imagery_level,
+    get_present_tense_level,
+    get_show_not_tell_level,
+)
 
 
 def _status_markup(valid: bool) -> tuple[str, str]:
     return ("[green]✓[/green]", "gruen") if valid else ("[red]✗[/red]", "rot")
+
+
+def _format_score(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else f"{value:.1f}"
+
+
+def _level_markup(level: str) -> str:
+    styles = {
+        "strong": "green",
+        "coherent": "green",
+        "showing": "green",
+        "present": "green",
+        "weak": "yellow",
+        "loosely_connected": "yellow",
+        "mixed": "yellow",
+        "absent": "red",
+        "fragmented": "red",
+        "telling": "red",
+    }
+    style = styles.get(level, "white")
+    return f"[{style}]{level}[/{style}]"
 
 
 def render_error(message: str) -> None:
@@ -39,6 +70,27 @@ def _print_criterion(console: Console, label: str, valid: bool, detail: str) -> 
     console.print(f"{symbol} {label}: {detail}")
 
 
+def _criterion_explanation(value: Any, *, fallback: str = "") -> str:
+    if isinstance(value, dict):
+        explanation = value.get("explanation") or value.get("description")
+        if explanation:
+            return str(explanation)
+        word = value.get("word")
+        season = value.get("season")
+        if word and season:
+            return f"{word} ({season})"
+        if word:
+            return str(word)
+    return fallback
+
+
+def _print_level_criterion(console: Console, label: str, level: str, detail: str) -> None:
+    if detail:
+        console.print(f"• {label}: {_level_markup(level)} - {detail}")
+        return
+    console.print(f"• {label}: {_level_markup(level)}")
+
+
 def render_ai_feedback(
     result: dict[str, Any],
     analysis: HaikuAnalysis,
@@ -48,65 +100,84 @@ def render_ai_feedback(
 ) -> None:
     console = Console()
 
-    kigo = result.get("kigo") or {}
-    juxtaposition = result.get("juxtaposition") or {}
-    mono_no_aware = result.get("mono_no_aware") or {}
-    kireji = result.get("kireji") or {}
     suggestions = result.get("suggestions") or []
 
+    console.print(
+        f"[cyan]Form:[/cyan] {_format_score(score_breakdown.form)}/{ScoreBreakdown.FORM_MAX}"
+    )
     _print_criterion(
         console,
         "Silben (Programm)",
         analysis.valid_structure,
         "gültiges 5-7-5" if analysis.valid_structure else "kein gültiges 5-7-5",
     )
-    _print_criterion(
-        console,
-        "Kigo",
-        bool(kigo.get("present")),
-        ("vorhanden" if kigo.get("present") else "nicht erkannt")
-        + (f" ({kigo.get('word')}, {kigo.get('season')})" if kigo.get("word") else ""),
-    )
-    _print_criterion(
-        console,
-        "Kireji",
-        bool(kireji.get("present")),
-        ("vorhanden" if kireji.get("present") else "nicht erkannt")
-        + (f" - {kireji.get('description')}" if kireji.get("description") else ""),
-    )
-    _print_criterion(
-        console,
-        "Naturbild",
-        bool(result.get("nature_imagery")),
-        "ja" if result.get("nature_imagery") else "nein",
-    )
-    _print_criterion(
-        console,
-        "Gegenwart",
-        bool(result.get("present_tense")),
-        "ja" if result.get("present_tense") else "nein",
-    )
-    _print_criterion(
-        console,
-        "Gegenüberstellung",
-        bool(juxtaposition.get("present")),
-        ("ja" if juxtaposition.get("present") else "nein")
-        + (f" - {juxtaposition.get('description')}" if juxtaposition.get("description") else ""),
-    )
-    if mono_no_aware.get("present") or mono_no_aware.get("description"):
-        console.print(
-            "[yellow]Hinweis:[/yellow] Mono no aware:"
-            f" {mono_no_aware.get('description') or 'vorhanden'}"
-        )
 
     console.print(
-        f"[cyan]Form:[/cyan] {score_breakdown.form}/{ScoreBreakdown.FORM_MAX}"
-    )
-    console.print(
-        f"[cyan]Haiku-Qualität:[/cyan] {score_breakdown.quality}/"
+        f"[cyan]Haiku-Qualität:[/cyan] {_format_score(score_breakdown.quality)}/"
         f"{ScoreBreakdown.QUALITY_MAX}"
     )
+    _print_level_criterion(
+        console,
+        "Kigo",
+        get_kigo_level(result),
+        _criterion_explanation(result.get("kigo"), fallback="Kein klarer Saisonbezug erkannt."),
+    )
+    _print_level_criterion(
+        console,
+        "Kireji",
+        get_kireji_level(result),
+        _criterion_explanation(result.get("kireji"), fallback="Keine markante Zäsur erkannt."),
+    )
+    _print_level_criterion(
+        console,
+        "Naturbild",
+        get_nature_imagery_level(result),
+        _criterion_explanation(result.get("nature_imagery"), fallback="Kein konkretes Naturbild erkannt."),
+    )
+    _print_level_criterion(
+        console,
+        "Gegenwart",
+        get_present_tense_level(result),
+        _criterion_explanation(result.get("present_tense"), fallback="Zeitbezug ist nicht klar im Präsens verankert."),
+    )
+    _print_level_criterion(
+        console,
+        "Gegenüberstellung",
+        get_juxtaposition_level(result),
+        _criterion_explanation(result.get("juxtaposition"), fallback="Kein produktiver Kontrast erkannt."),
+    )
+    _print_level_criterion(
+        console,
+        "Bildkohärenz",
+        get_image_coherence_level(result),
+        _criterion_explanation(result.get("image_coherence"), fallback="Die Bilder bilden keinen klaren Strang."),
+    )
+    _print_level_criterion(
+        console,
+        "Show vs. Tell",
+        get_show_not_tell_level(result),
+        _criterion_explanation(result.get("show_not_tell"), fallback="Die Bildsprache bleibt nicht durchgehend konkret."),
+    )
+
     console.print(f"[cyan]Gesamtwertung:[/cyan] {score_breakdown.overall}/10")
+    _print_level_criterion(
+        console,
+        "Mono no aware",
+        get_mono_no_aware_level(result),
+        _criterion_explanation(
+            result.get("mono_no_aware"),
+            fallback="Keine zusätzliche Vergänglichkeits-Schicht erkennbar.",
+        ),
+    )
+    console.print(
+        f"• Normalisiert: {score_breakdown.normalized}/{ScoreBreakdown.OVERALL_MAX}"
+    )
+    if score_breakdown.mono_no_aware_bonus:
+        console.print(f"• Mono no aware Bonus: +{score_breakdown.mono_no_aware_bonus}")
+    if score_breakdown.suggestions_cap_applied:
+        console.print(
+            "• Hinweis-Deckel: 10/10 wurde wegen offener Hinweise auf 9/10 reduziert."
+        )
 
     if suggestions:
         heading = "Vorschläge" if strict else "Hinweise"

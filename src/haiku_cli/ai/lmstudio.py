@@ -9,8 +9,12 @@ from haiku_cli.ai import ProviderUnavailable
 from haiku_cli.ai.json_response import parse_model_json_dict
 from haiku_cli.ai.prompts import build_system_prompt
 
-DEFAULT_LMSTUDIO_BASE_URL = "http://localhost:1234/v1"
+# 127.0.0.1 avoids macOS resolving "localhost" to ::1 while the server listens on IPv4 only.
+# Override with LMSTUDIO_BASE_URL, e.g. http://192.168.x.x:1234/v1 when the CLI runs on another host.
+DEFAULT_LMSTUDIO_BASE_URL = "http://127.0.0.1:1234/v1"
 DEFAULT_LMSTUDIO_API_KEY = "lm-studio"
+# Identifier as shown under LM Studio "Loaded Models" (OpenAI-compatible /v1/chat/completions).
+DEFAULT_LMSTUDIO_MODEL = "google/gemma-4-e4b"
 
 
 def _base_url() -> str:
@@ -25,6 +29,7 @@ def _request_json(
     *,
     method: str = "GET",
     payload: dict[str, Any] | None = None,
+    timeout: int = 5,
 ) -> dict[str, Any]:
     headers = {
         "Accept": "application/json",
@@ -35,15 +40,33 @@ def _request_json(
         headers["Content-Type"] = "application/json"
         data = json.dumps(payload).encode("utf-8")
 
-    req = request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with request.urlopen(req, timeout=5) as response:
-            raw = response.read().decode("utf-8")
-    except OSError as exc:
+    candidates = [url]
+    if "localhost" in url:
+        alt = url.replace("localhost", "127.0.0.1", 1)
+        if alt != url:
+            candidates.append(alt)
+
+    last_exc: OSError | None = None
+    raw = ""
+    for attempt_url in candidates:
+        req = request.Request(attempt_url, data=data, headers=headers, method=method)
+        try:
+            with request.urlopen(req, timeout=timeout) as response:
+                raw = response.read().decode("utf-8")
+            break
+        except OSError as exc:
+            last_exc = exc
+    else:
+        hint = (
+            " Server muss auf demselben Rechner laufen wie dieses Terminal "
+            "(bei SSH/Remote: LMSTUDIO_BASE_URL auf die IP des Macs setzen, "
+            "Port und Firewall prüfen). Siehe "
+            "https://lmstudio.ai/docs/developer/openai-compat (Base URL /v1)."
+        )
         raise ProviderUnavailable(
             "LM Studio ist nicht erreichbar. Prüfe, ob der Local Server läuft "
-            f"({url})."
-        ) from exc
+            f"({url}).{hint}"
+        ) from last_exc
 
     try:
         parsed = json.loads(raw)
@@ -55,28 +78,10 @@ def _request_json(
     return parsed
 
 
-def _list_models() -> list[dict[str, Any]]:
-    response = _request_json(f"{_base_url()}/models")
-    models = response.get("data")
-    if not isinstance(models, list):
-        raise ProviderUnavailable("LM Studio liefert keine Modellliste am /models-Endpoint.")
-    return [model for model in models if isinstance(model, dict)]
-
-
 def _select_model(model: str | None) -> str:
     if model:
         return model
-
-    models = _list_models()
-    for entry in models:
-        model_id = entry.get("id")
-        if isinstance(model_id, str) and model_id.strip():
-            return model_id
-
-    raise ProviderUnavailable(
-        "LM Studio ist erreichbar, aber es ist kein geladenes Modell verfügbar. "
-        "Starte den Local Server mit einem Modell oder nutze --model."
-    )
+    return DEFAULT_LMSTUDIO_MODEL
 
 
 def run_lmstudio_check(
@@ -95,7 +100,12 @@ def run_lmstudio_check(
         ],
         "temperature": 0.1,
     }
-    response = _request_json(f"{_base_url()}/chat/completions", method="POST", payload=payload)
+    response = _request_json(
+        f"{_base_url()}/chat/completions",
+        method="POST",
+        payload=payload,
+        timeout=120,
+    )
     try:
         content = response["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:

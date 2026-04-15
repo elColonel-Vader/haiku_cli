@@ -50,15 +50,41 @@ Wichtige Regeln für deine Analyse:
 - Behaupte nicht, die Form sei kein 5-7-5, wenn die Struktur insgesamt als gültig markiert ist.
 - Kritisiere poetische Inversion oder ungewöhnliche Wortstellung
   nicht pauschal als erklärend oder prosaisch.
+- Bewerte Kigo, Kireji, Naturbild, Gegenwart und Gegenüberstellung
+  mit den Stufen strong | weak | absent.
+- Bewerte image_coherence mit coherent | loosely_connected | fragmented.
+- Bewerte show_not_tell mit showing | mixed | telling.
+- Bewerte mono_no_aware nur mit present | absent.
+
+Leitplanken für die Stufen:
+- Kigo strong: konkrete jahreszeitliche Referenz, die Stimmung trägt.
+- Kigo weak: Naturbezug ohne klare saisonale Verankerung.
+- Kireji strong: deutliche Zäsur mit Spannung oder Schnittwirkung.
+- Kireji weak: hörbare Pause ohne markante Kontrastwirkung.
+- Naturbild strong: konkret, sensorisch, spezifisch.
+- Naturbild weak: Natur nur generisch oder als Kulisse.
+- Gegenwart strong: der Moment ist klar im Präsens gefasst.
+- Gegenwart weak: überwiegend Präsens, aber zeitlich unscharf.
+- Gegenüberstellung strong: zwei Ebenen erzeugen produktive Spannung.
+- Gegenüberstellung weak: mehrere Bilder sind da, aber die Spannung bleibt flach.
+- image_coherence coherent: Motive greifen ineinander oder beleuchten sich rückwirkend.
+- image_coherence loosely_connected: Zusammenhang ist da, aber die Bildsprünge bleiben spürbar.
+- image_coherence fragmented: jede Zeile eröffnet eine neue Bildwelt.
+- show_not_tell showing: Emotionen entstehen aus konkreten Bildern.
+- show_not_tell mixed: überwiegend bildlich, aber mit erklärendem abstrakten Anteil.
+- show_not_tell telling: Abstrakta oder Zustände werden direkt benannt.
+- mono_no_aware present: Vergänglichkeit schwingt still mit, ohne explizit benannt zu werden.
 
 Antworte ausschließlich in JSON mit diesem Schema:
 {{
-  "kigo": {{"present": bool, "word": str, "season": str}},
-  "kireji": {{"present": bool, "description": str}},
-  "present_tense": bool,
-  "nature_imagery": bool,
-  "juxtaposition": {{"present": bool, "description": str}},
-  "mono_no_aware": {{"present": bool, "description": str}},
+  "kigo": {{"level": "strong|weak|absent", "explanation": str}},
+  "kireji": {{"level": "strong|weak|absent", "explanation": str}},
+  "present_tense": {{"level": "strong|weak|absent", "explanation": str}},
+  "nature_imagery": {{"level": "strong|weak|absent", "explanation": str}},
+  "juxtaposition": {{"level": "strong|weak|absent", "explanation": str}},
+  "image_coherence": {{"level": "coherent|loosely_connected|fragmented", "explanation": str}},
+  "show_not_tell": {{"level": "showing|mixed|telling", "explanation": str}},
+  "mono_no_aware": {{"level": "present|absent", "explanation": str}},
   "suggestions": ["string"],
   "syllable_check": {{
     "line1": {{"words": [{{"word": str, "syllables": int}}], "total": int}},
