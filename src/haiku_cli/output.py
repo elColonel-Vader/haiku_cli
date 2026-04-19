@@ -1,21 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Iterable
 
 from rich.console import Console
 
 from haiku_cli.models import HaikuAnalysis
-from haiku_cli.scoring import (
-    ScoreBreakdown,
-    get_image_coherence_level,
-    get_juxtaposition_level,
-    get_kigo_level,
-    get_kireji_level,
-    get_mono_no_aware_level,
-    get_nature_imagery_level,
-    get_present_tense_level,
-    get_show_not_tell_level,
-)
+from haiku_cli.scoring import ScoreBreakdown
 
 
 def _status_markup(valid: bool) -> tuple[str, str]:
@@ -23,24 +13,37 @@ def _status_markup(valid: bool) -> tuple[str, str]:
 
 
 def _format_score(value: float) -> str:
-    return str(int(value)) if float(value).is_integer() else f"{value:.1f}"
+    return f"{value:.1f}"
 
 
-def _level_markup(level: str) -> str:
-    styles = {
-        "strong": "green",
-        "coherent": "green",
-        "showing": "green",
-        "present": "green",
-        "weak": "yellow",
-        "loosely_connected": "yellow",
-        "mixed": "yellow",
-        "absent": "red",
-        "fragmented": "red",
-        "telling": "red",
-    }
-    style = styles.get(level, "white")
-    return f"[{style}]{level}[/{style}]"
+def _summary_style(verdict: str) -> tuple[str, str]:
+    if verdict in {"MEISTERHAFT", "GUT"}:
+        return "[green]✓[/green]", "green"
+    if verdict == "ORDENTLICH":
+        return "[yellow]⚠[/yellow]", "yellow"
+    return "[red]✗[/red]", "red"
+
+
+def _note(value: Any, *, fallback: str = "") -> str:
+    if isinstance(value, dict):
+        note = value.get("note")
+        if isinstance(note, str) and note.strip():
+            return note.strip()
+    return fallback
+
+
+def _string_list(value: Any, key: str) -> list[str]:
+    if not isinstance(value, dict):
+        return []
+    raw = value.get(key)
+    if not isinstance(raw, list):
+        return []
+    return [str(item) for item in raw if str(item).strip()]
+
+
+def _detail_text(parts: Iterable[str]) -> str:
+    filtered = [part for part in parts if part]
+    return " | ".join(filtered)
 
 
 def render_error(message: str) -> None:
@@ -65,30 +68,13 @@ def render_analysis(analysis: HaikuAnalysis, *, debug: bool = False) -> None:
         console.print("[red]✗ Struktur: kein gültiges 5-7-5[/red]")
 
 
-def _print_criterion(console: Console, label: str, valid: bool, detail: str) -> None:
-    symbol, _ = _status_markup(valid)
-    console.print(f"{symbol} {label}: {detail}")
-
-
-def _criterion_explanation(value: Any, *, fallback: str = "") -> str:
-    if isinstance(value, dict):
-        explanation = value.get("explanation") or value.get("description")
-        if explanation:
-            return str(explanation)
-        word = value.get("word")
-        season = value.get("season")
-        if word and season:
-            return f"{word} ({season})"
-        if word:
-            return str(word)
-    return fallback
-
-
-def _print_level_criterion(console: Console, label: str, level: str, detail: str) -> None:
-    if detail:
-        console.print(f"• {label}: {_level_markup(level)} - {detail}")
-        return
-    console.print(f"• {label}: {_level_markup(level)}")
+def render_quiet_ai_feedback(score_breakdown: ScoreBreakdown) -> None:
+    console = Console()
+    symbol, style = _summary_style(score_breakdown.verdict)
+    console.print(
+        f"{symbol} [{style}]{score_breakdown.verdict}[/{style}] "
+        f"{_format_score(score_breakdown.overall)}/10"
+    )
 
 
 def render_ai_feedback(
@@ -98,90 +84,109 @@ def render_ai_feedback(
     strict: bool = False,
     score_breakdown: ScoreBreakdown,
 ) -> None:
+    del strict
     console = Console()
 
-    suggestions = result.get("suggestions") or []
-
+    symbol, style = _summary_style(score_breakdown.verdict)
     console.print(
-        f"[cyan]Form:[/cyan] {_format_score(score_breakdown.form)}/{ScoreBreakdown.FORM_MAX}"
-    )
-    _print_criterion(
-        console,
-        "Silben (Programm)",
-        analysis.valid_structure,
-        "gültiges 5-7-5" if analysis.valid_structure else "kein gültiges 5-7-5",
-    )
-
-    console.print(
-        f"[cyan]Haiku-Qualität:[/cyan] {_format_score(score_breakdown.quality)}/"
-        f"{ScoreBreakdown.QUALITY_MAX}"
-    )
-    _print_level_criterion(
-        console,
-        "Kigo",
-        get_kigo_level(result),
-        _criterion_explanation(result.get("kigo"), fallback="Kein klarer Saisonbezug erkannt."),
-    )
-    _print_level_criterion(
-        console,
-        "Kireji",
-        get_kireji_level(result),
-        _criterion_explanation(result.get("kireji"), fallback="Keine markante Zäsur erkannt."),
-    )
-    _print_level_criterion(
-        console,
-        "Naturbild",
-        get_nature_imagery_level(result),
-        _criterion_explanation(result.get("nature_imagery"), fallback="Kein konkretes Naturbild erkannt."),
-    )
-    _print_level_criterion(
-        console,
-        "Gegenwart",
-        get_present_tense_level(result),
-        _criterion_explanation(result.get("present_tense"), fallback="Zeitbezug ist nicht klar im Präsens verankert."),
-    )
-    _print_level_criterion(
-        console,
-        "Gegenüberstellung",
-        get_juxtaposition_level(result),
-        _criterion_explanation(result.get("juxtaposition"), fallback="Kein produktiver Kontrast erkannt."),
-    )
-    _print_level_criterion(
-        console,
-        "Bildkohärenz",
-        get_image_coherence_level(result),
-        _criterion_explanation(result.get("image_coherence"), fallback="Die Bilder bilden keinen klaren Strang."),
-    )
-    _print_level_criterion(
-        console,
-        "Show vs. Tell",
-        get_show_not_tell_level(result),
-        _criterion_explanation(result.get("show_not_tell"), fallback="Die Bildsprache bleibt nicht durchgehend konkret."),
-    )
-
-    console.print(f"[cyan]Gesamtwertung:[/cyan] {score_breakdown.overall}/10")
-    _print_level_criterion(
-        console,
-        "Mono no aware",
-        get_mono_no_aware_level(result),
-        _criterion_explanation(
-            result.get("mono_no_aware"),
-            fallback="Keine zusätzliche Vergänglichkeits-Schicht erkennbar.",
-        ),
+        f"{symbol} [{style}]Verdict:[/{style}] [{style}]{score_breakdown.verdict}[/{style}] "
+        f"({_format_score(score_breakdown.overall)}/10)"
     )
     console.print(
-        f"• Normalisiert: {score_breakdown.normalized}/{ScoreBreakdown.OVERALL_MAX}"
+        f"[cyan]Form:[/cyan] {'gültig' if analysis.valid_structure else 'ungültig'}es 5-7-5"
     )
-    if score_breakdown.mono_no_aware_bonus:
-        console.print(f"• Mono no aware Bonus: +{score_breakdown.mono_no_aware_bonus}")
-    if score_breakdown.suggestions_cap_applied:
-        console.print(
-            "• Hinweis-Deckel: 10/10 wurde wegen offener Hinweise auf 9/10 reduziert."
+
+    reasoning = result.get("reasoning")
+    if isinstance(reasoning, str) and reasoning.strip():
+        console.print(f"[cyan]Reasoning:[/cyan] {reasoning.strip()}")
+
+    kigo = result.get("kigo")
+    kigo_details = _detail_text(
+        (
+            f"Wort: {kigo.get('word')}" if isinstance(kigo, dict) and kigo.get("word") else "",
+            f"Jahreszeit: {kigo.get('season')}"
+            if isinstance(kigo, dict) and kigo.get("season")
+            else "",
+            _note(kigo, fallback="Kein klares Jahreszeitenwort erkannt."),
         )
+    )
+    console.print(f"• Kigo: {score_breakdown.kigo}/3 - {kigo_details}")
 
+    kireji = result.get("kireji")
+    kireji_details = _detail_text(
+        (
+            f"Schnitt: {kireji.get('cut_point')}"
+            if isinstance(kireji, dict) and kireji.get("cut_point")
+            else "",
+            _note(kireji, fallback="Keine tragfähige Zäsur erkannt."),
+        )
+    )
+    console.print(f"• Kireji: {score_breakdown.kireji}/3 - {kireji_details}")
+
+    bild = result.get("bild")
+    bild_details = _detail_text(
+        (
+            f"Konkrete Bilder: {', '.join(_string_list(bild, 'concrete_images'))}"
+            if _string_list(bild, "concrete_images")
+            else "",
+            f"Abstrakta: {', '.join(_string_list(bild, 'abstract_words'))}"
+            if _string_list(bild, "abstract_words")
+            else "",
+            _note(bild, fallback="Die Bildsprache bleibt unklar."),
+        )
+    )
+    console.print(f"• Bild / Sinneseindruck: {score_breakdown.bild}/3 - {bild_details}")
+
+    gegenwart = result.get("gegenwart")
+    gegenwart_details = _detail_text(
+        (
+            f"Zeitprobleme: {', '.join(_string_list(gegenwart, 'tense_issues'))}"
+            if _string_list(gegenwart, "tense_issues")
+            else "",
+            _note(gegenwart, fallback="Der Augenblick ist nicht konsequent im Präsens verankert."),
+        )
+    )
+    console.print(f"• Gegenwart: {score_breakdown.gegenwart}/2 - {gegenwart_details}")
+
+    natur = result.get("natur")
+    natur_details = _detail_text(
+        (
+            f"Naturelemente: {', '.join(_string_list(natur, 'elements'))}"
+            if _string_list(natur, "elements")
+            else "",
+            _note(natur, fallback="Kein tragender Naturbezug erkennbar."),
+        )
+    )
+    console.print(f"• Naturbezug: {score_breakdown.natur}/2 - {natur_details}")
+
+    verdichtung = result.get("verdichtung")
+    verdichtung_details = _detail_text(
+        (
+            f"Füllwörter: {', '.join(_string_list(verdichtung, 'filler_words'))}"
+            if _string_list(verdichtung, "filler_words")
+            else "",
+            _note(verdichtung, fallback="Der Ausdruck ist nicht maximal verdichtet."),
+        )
+    )
+    console.print(f"• Verdichtung: {score_breakdown.verdichtung}/2 - {verdichtung_details}")
+
+    console.print(
+        f"[cyan]Gewichtete Punkte:[/cyan] "
+        f"{score_breakdown.weighted_points}/{ScoreBreakdown.MAX_POSSIBLE}"
+    )
+    console.print(f"[cyan]Gesamtwertung:[/cyan] {_format_score(score_breakdown.overall)}/10")
+    if score_breakdown.hard_fail_triggered:
+        reason = score_breakdown.hard_fail_reason or "Hard-Fail-Bedingung ausgelöst."
+        console.print(
+            f"[red]Hard Fail:[/red] Ja ({reason}) -> Deckel auf "
+            f"{_format_score(ScoreBreakdown.HARD_FAIL_CAP)}/10"
+        )
+    else:
+        console.print("[green]Hard Fail:[/green] Nein")
+
+    suggestions = [str(item) for item in result.get("suggestions") or [] if str(item).strip()]
     if suggestions:
-        heading = "Vorschläge" if strict else "Hinweise"
-        console.print(f"[cyan]{heading}:[/cyan]")
+        console.print("[cyan]Vorschläge:[/cyan]")
         for item in suggestions:
             console.print(f"  - {item}")
 

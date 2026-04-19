@@ -23,6 +23,49 @@ INVALID_HAIKU = "\n".join(
 )
 
 
+def _result(
+    *,
+    kigo: int,
+    kireji: int,
+    bild: int,
+    gegenwart: int,
+    natur: int,
+    verdichtung: int,
+    suggestions: list[str] | None = None,
+    hard_fail: bool = False,
+    hard_fail_reason: str | None = None,
+    overall_score: float = 0.0,
+    verdict: str = "UNGENÜGEND",
+) -> dict:
+    return {
+        "reasoning": "Kategorie für Kategorie geprüft.",
+        "kigo": {
+            "score": kigo,
+            "word": "Kirschblüten",
+            "season": "Frühling",
+            "note": "Klares Kigo.",
+        },
+        "kireji": {"score": kireji, "cut_point": "nach Zeile 1", "note": "Saubere Zäsur."},
+        "bild": {
+            "score": bild,
+            "concrete_images": ["Kirschblüten", "Regen", "Moos"],
+            "abstract_words": [],
+            "note": "Konkrete Bilder tragen das Haiku.",
+        },
+        "gegenwart": {"score": gegenwart, "tense_issues": [], "note": "Im Augenblick gehalten."},
+        "natur": {
+            "score": natur,
+            "elements": ["Kirschblüten", "Regen", "Moos"],
+            "note": "Starker Naturbezug.",
+        },
+        "verdichtung": {"score": verdichtung, "filler_words": [], "note": "Knapper Ausdruck."},
+        "hard_fail": {"triggered": hard_fail, "reason": hard_fail_reason},
+        "overall_score": overall_score,
+        "verdict": verdict,
+        "suggestions": suggestions or [],
+    }
+
+
 def test_cli_pipe_mode_valid() -> None:
     runner = CliRunner()
     result = runner.invoke(main, ["--quiet"], input=VALID_HAIKU)
@@ -45,7 +88,7 @@ def test_cli_interactive_mode() -> None:
     assert "Struktur: gültiges 5-7-5" in result.output
 
 
-def test_cli_strict_graceful_fallback_without_ai(monkeypatch) -> None:
+def test_cli_strict_fails_without_ai(monkeypatch) -> None:
     def fake_run_ai_check(*args, **kwargs):
         raise ProviderUnavailable("Kein KI-Backend (Teststub).")
 
@@ -53,17 +96,16 @@ def test_cli_strict_graceful_fallback_without_ai(monkeypatch) -> None:
 
     runner = CliRunner()
     result = runner.invoke(main, ["--strict"], input=VALID_HAIKU)
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "Warnung" in result.output
 
 
-def test_cli_help_uses_real_umlauts() -> None:
+def test_cli_help_mentions_quiet_summary_mode() -> None:
     runner = CliRunner()
     result = runner.invoke(main, ["--help"])
     assert result.exit_code == 0
     assert "Führt zusätzlich eine KI-Haikuprüfung aus." in result.output
-    assert "Silbenaufschlüsselung" in result.output
-    assert "[default:" in result.output and "auto]" in result.output
+    assert "Verdict + Score." in result.output
     assert "lmstudio" in result.output
 
 
@@ -72,66 +114,56 @@ def test_cli_uses_computed_score_and_filters_structure_contradictions(monkeypatc
 
     def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
         assert analysis.valid_structure is True
-        return {
-            "kigo": {"level": "strong", "explanation": "April verankert die Szene klar im Frühling."},
-            "kireji": {"level": "strong", "explanation": "Der Gedankenstrich setzt einen deutlichen Schnitt."},
-            "present_tense": {"level": "strong", "explanation": "Das Gedicht bleibt im erlebten Jetzt."},
-            "nature_imagery": {"level": "strong", "explanation": "Blüte und Stille sind konkrete Naturbilder."},
-            "juxtaposition": {
-                "level": "strong",
-                "explanation": "Blüte und Stille stehen in produktiver Spannung.",
-            },
-            "image_coherence": {
-                "level": "coherent",
-                "explanation": "Alle Bilder gehören zu einem ruhigen Frühlingsfeld.",
-            },
-            "show_not_tell": {
-                "level": "showing",
-                "explanation": "Die Stimmung entsteht aus den Bildern statt aus benannten Gefühlen.",
-            },
-            "mono_no_aware": {"level": "absent", "explanation": ""},
-            "overall_score": 3,
-            "suggestions": [
+        return _result(
+            kigo=3,
+            kireji=3,
+            bild=3,
+            gegenwart=2,
+            natur=2,
+            verdichtung=2,
+            overall_score=3.0,
+            verdict="SCHWACH",
+            suggestions=[
                 "Nicht streng 5-7-5, bitte Silben prüfen.",
-                "Die Gegenüberstellung könnte noch knapper formuliert werden.",
+                "Die Naturbilder könnten noch überraschender werden.",
             ],
-        }
+        )
 
     monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
 
     result = runner.invoke(main, ["--check"], input=VALID_HAIKU)
     assert result.exit_code == 0
-    assert "Form: 2/2" in result.output
-    assert "Haiku-Qualität: 12/12" in result.output
-    assert "Gesamtwertung: 9/10" in result.output
-    assert "Hinweis-Deckel: 10/10 wurde wegen offener Hinweise auf 9/10 reduziert." in result.output
+    assert "Verdict:" in result.output
+    assert "MEISTERHAFT" in result.output
+    assert "10.0/10" in result.output
     assert "Nicht streng 5-7-5" not in result.output
-    assert "Die Gegenüberstellung könnte noch knapper formuliert werden." in result.output
+    assert "Die Naturbilder könnten noch überraschender werden." in result.output
 
 
-def test_cli_renders_failed_criteria_with_cross(monkeypatch) -> None:
+def test_cli_renders_numeric_category_scores_and_hard_fail(monkeypatch) -> None:
     runner = CliRunner()
 
     def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
-        return {
-            "kigo": {"level": "absent", "explanation": "Kein Saisonbezug."},
-            "kireji": {"level": "weak", "explanation": "Eine Pause ist da, aber ohne starken Schnitt."},
-            "present_tense": {"level": "absent", "explanation": "Der Zeitbezug bleibt unklar."},
-            "nature_imagery": {"level": "strong", "explanation": "Das Naturbild ist konkret."},
-            "juxtaposition": {"level": "absent", "explanation": "Kein Kontrast."},
-            "image_coherence": {"level": "fragmented", "explanation": "Die Bilder springen stark."},
-            "show_not_tell": {"level": "mixed", "explanation": "Ein Teil bleibt erklärend."},
-            "mono_no_aware": {"level": "absent", "explanation": ""},
-            "suggestions": [],
-        }
+        return _result(
+            kigo=0,
+            kireji=1,
+            bild=0,
+            gegenwart=0,
+            natur=1,
+            verdichtung=0,
+            hard_fail=True,
+            hard_fail_reason="Aphorismus statt Haiku",
+        )
 
     monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
 
     result = runner.invoke(main, ["--check"], input=VALID_HAIKU)
     assert result.exit_code == 0
-    assert "Kigo: absent" in result.output
-    assert "Kireji: weak" in result.output
-    assert "Naturbild: strong" in result.output
+    assert "Kigo: 0/3" in result.output
+    assert "Kireji: 1/3" in result.output
+    assert "Naturbezug: 1/2" in result.output
+    assert "Hard Fail:" in result.output
+    assert "Aphorismus statt Haiku" in result.output
 
 
 def test_cli_uses_auto_provider_by_default(monkeypatch) -> None:
@@ -139,17 +171,7 @@ def test_cli_uses_auto_provider_by_default(monkeypatch) -> None:
 
     def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
         assert provider == "auto"
-        return {
-            "kigo": {"level": "absent", "explanation": ""},
-            "kireji": {"level": "absent", "explanation": ""},
-            "present_tense": {"level": "absent", "explanation": ""},
-            "nature_imagery": {"level": "absent", "explanation": ""},
-            "juxtaposition": {"level": "absent", "explanation": ""},
-            "image_coherence": {"level": "fragmented", "explanation": ""},
-            "show_not_tell": {"level": "telling", "explanation": ""},
-            "mono_no_aware": {"level": "absent", "explanation": ""},
-            "suggestions": [],
-        }
+        return _result(kigo=0, kireji=0, bild=0, gegenwart=0, natur=0, verdichtung=0)
 
     monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
 
@@ -162,19 +184,50 @@ def test_cli_accepts_explicit_lmstudio_provider(monkeypatch) -> None:
 
     def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
         assert provider == "lmstudio"
-        return {
-            "kigo": {"level": "absent", "explanation": ""},
-            "kireji": {"level": "absent", "explanation": ""},
-            "present_tense": {"level": "absent", "explanation": ""},
-            "nature_imagery": {"level": "absent", "explanation": ""},
-            "juxtaposition": {"level": "absent", "explanation": ""},
-            "image_coherence": {"level": "fragmented", "explanation": ""},
-            "show_not_tell": {"level": "telling", "explanation": ""},
-            "mono_no_aware": {"level": "absent", "explanation": ""},
-            "suggestions": [],
-        }
+        return _result(kigo=0, kireji=0, bild=0, gegenwart=0, natur=0, verdichtung=0)
 
     monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
 
     result = runner.invoke(main, ["--check", "--provider", "lmstudio"], input=VALID_HAIKU)
     assert result.exit_code == 0
+
+
+def test_cli_check_quiet_outputs_only_verdict_and_score(monkeypatch) -> None:
+    runner = CliRunner()
+
+    def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
+        return _result(kigo=2, kireji=2, bild=2, gegenwart=2, natur=2, verdichtung=1)
+
+    monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
+
+    result = runner.invoke(main, ["--check", "--quiet"], input=VALID_HAIKU)
+    assert result.exit_code == 0
+    assert "GUT 7.0/10" in result.output
+    assert "Struktur:" not in result.output
+    assert "Reasoning:" not in result.output
+
+
+def test_cli_strict_rejects_scores_below_threshold(monkeypatch) -> None:
+    runner = CliRunner()
+
+    def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
+        return _result(kigo=1, kireji=1, bild=1, gegenwart=1, natur=1, verdichtung=1)
+
+    monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
+
+    result = runner.invoke(main, ["--strict", "--quiet"], input=VALID_HAIKU)
+    assert result.exit_code == 1
+    assert "SCHWACH 3.7/10" in result.output
+
+
+def test_cli_strict_accepts_scores_at_threshold(monkeypatch) -> None:
+    runner = CliRunner()
+
+    def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
+        return _result(kigo=2, kireji=2, bild=2, gegenwart=2, natur=2, verdichtung=1)
+
+    monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
+
+    result = runner.invoke(main, ["--strict", "--quiet"], input=VALID_HAIKU)
+    assert result.exit_code == 0
+    assert "GUT 7.0/10" in result.output

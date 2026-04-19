@@ -1,172 +1,129 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar, Mapping, Sequence
+from typing import Any, ClassVar
 
-from haiku_cli.models import HaikuAnalysis
-
-THREE_LEVEL_SCORES: dict[str, float] = {"absent": 0.0, "weak": 1.0, "strong": 2.0}
-HALF_STEP_LEVEL_SCORES: dict[str, float] = {"absent": 0.0, "weak": 0.5, "strong": 1.0}
-IMAGE_COHERENCE_SCORES: dict[str, float] = {
-    "fragmented": 0.0,
-    "loosely_connected": 1.0,
-    "coherent": 2.0,
+CATEGORY_MAX_SCORES: dict[str, int] = {
+    "kigo": 3,
+    "kireji": 3,
+    "bild": 3,
+    "gegenwart": 2,
+    "natur": 2,
+    "verdichtung": 2,
 }
-SHOW_NOT_TELL_SCORES: dict[str, float] = {"telling": 0.0, "mixed": 1.0, "showing": 2.0}
-MONO_NO_AWARE_SCORES: dict[str, float] = {"absent": 0.0, "present": 1.0}
+
+CATEGORY_WEIGHTS: dict[str, int] = {
+    "kigo": 25,
+    "kireji": 20,
+    "bild": 25,
+    "gegenwart": 10,
+    "natur": 10,
+    "verdichtung": 10,
+}
 
 
-def _extract_level(
-    value: Any,
-    *,
-    level_scores: Mapping[str, float],
-    legacy_true: str,
-    legacy_false: str,
-) -> str:
-    if isinstance(value, dict):
-        level = value.get("level")
-        if isinstance(level, str) and level in level_scores:
-            return level
-        if "present" in value:
-            return legacy_true if bool(value.get("present")) else legacy_false
-    elif isinstance(value, bool):
-        return legacy_true if value else legacy_false
+def _coerce_score(value: Any, *, maximum: int) -> int:
+    if not isinstance(value, dict):
+        return 0
 
-    return legacy_false
+    score = value.get("score")
+    if not isinstance(score, (int, float)):
+        return 0
+
+    return max(0, min(int(score), maximum))
 
 
-def get_kigo_level(result: dict[str, Any]) -> str:
-    return _extract_level(
-        result.get("kigo"),
-        level_scores=THREE_LEVEL_SCORES,
-        legacy_true="strong",
-        legacy_false="absent",
-    )
+def get_category_score(result: dict[str, Any], key: str) -> int:
+    return _coerce_score(result.get(key), maximum=CATEGORY_MAX_SCORES[key])
 
 
-def get_kireji_level(result: dict[str, Any]) -> str:
-    return _extract_level(
-        result.get("kireji"),
-        level_scores=HALF_STEP_LEVEL_SCORES,
-        legacy_true="strong",
-        legacy_false="absent",
-    )
+def get_hard_fail(result: dict[str, Any]) -> tuple[bool, str | None]:
+    value = result.get("hard_fail")
+    if not isinstance(value, dict):
+        return False, None
+
+    triggered = bool(value.get("triggered"))
+    reason = value.get("reason")
+    if reason is None:
+        return triggered, None
+
+    normalized = str(reason).strip()
+    if not normalized or normalized.casefold() == "null":
+        return triggered, None
+    return triggered, normalized
 
 
-def get_nature_imagery_level(result: dict[str, Any]) -> str:
-    return _extract_level(
-        result.get("nature_imagery"),
-        level_scores=THREE_LEVEL_SCORES,
-        legacy_true="strong",
-        legacy_false="absent",
-    )
-
-
-def get_present_tense_level(result: dict[str, Any]) -> str:
-    return _extract_level(
-        result.get("present_tense"),
-        level_scores=HALF_STEP_LEVEL_SCORES,
-        legacy_true="strong",
-        legacy_false="absent",
-    )
-
-
-def get_juxtaposition_level(result: dict[str, Any]) -> str:
-    return _extract_level(
-        result.get("juxtaposition"),
-        level_scores=THREE_LEVEL_SCORES,
-        legacy_true="strong",
-        legacy_false="absent",
-    )
-
-
-def get_image_coherence_level(result: dict[str, Any]) -> str:
-    return _extract_level(
-        result.get("image_coherence"),
-        level_scores=IMAGE_COHERENCE_SCORES,
-        legacy_true="coherent",
-        legacy_false="fragmented",
-    )
-
-
-def get_show_not_tell_level(result: dict[str, Any]) -> str:
-    return _extract_level(
-        result.get("show_not_tell"),
-        level_scores=SHOW_NOT_TELL_SCORES,
-        legacy_true="showing",
-        legacy_false="telling",
-    )
-
-
-def get_mono_no_aware_level(result: dict[str, Any]) -> str:
-    return _extract_level(
-        result.get("mono_no_aware"),
-        level_scores=MONO_NO_AWARE_SCORES,
-        legacy_true="present",
-        legacy_false="absent",
-    )
+def derive_verdict(score: float) -> str:
+    if score >= 8.0:
+        return "MEISTERHAFT"
+    if score >= 6.5:
+        return "GUT"
+    if score >= 4.5:
+        return "ORDENTLICH"
+    if score >= 2.5:
+        return "SCHWACH"
+    return "UNGENÜGEND"
 
 
 @dataclass(frozen=True)
 class ScoreBreakdown:
-    """Form (0–2), Haiku-Qualität (0–12) und normalisierte Gesamtwertung (0–10)."""
+    kigo: int
+    kireji: int
+    bild: int
+    gegenwart: int
+    natur: int
+    verdichtung: int
+    weighted_points: int
+    raw_overall: float
+    overall: float
+    verdict: str
+    hard_fail_triggered: bool
+    hard_fail_reason: str | None
 
-    form: int
-    quality: float
-    raw_total: float
-    normalized: int
-    mono_no_aware_bonus: int
-    pre_cap_overall: int
-    suggestions_cap_applied: bool
-    overall: int
-
-    FORM_MAX: ClassVar[int] = 2
-    QUALITY_MAX: ClassVar[int] = 12
-    RAW_MAX: ClassVar[int] = 14
-    OVERALL_MAX: ClassVar[int] = 10
+    OVERALL_MAX: ClassVar[float] = 10.0
+    HARD_FAIL_CAP: ClassVar[float] = 3.0
+    STRICT_PASS_THRESHOLD: ClassVar[float] = 6.5
+    STRICT_WARN_THRESHOLD: ClassVar[float] = 4.5
+    MAX_POSSIBLE: ClassVar[int] = 270
 
 
-def compute_score(
-    analysis: HaikuAnalysis,
-    result: dict[str, Any],
-    suggestions: Sequence[str] | None = None,
-) -> ScoreBreakdown:
-    form = 2 if analysis.valid_structure else 0
+def compute_score(result: dict[str, Any]) -> ScoreBreakdown:
+    kigo = get_category_score(result, "kigo")
+    kireji = get_category_score(result, "kireji")
+    bild = get_category_score(result, "bild")
+    gegenwart = get_category_score(result, "gegenwart")
+    natur = get_category_score(result, "natur")
+    verdichtung = get_category_score(result, "verdichtung")
 
-    quality = (
-        THREE_LEVEL_SCORES[get_kigo_level(result)]
-        + HALF_STEP_LEVEL_SCORES[get_kireji_level(result)]
-        + THREE_LEVEL_SCORES[get_nature_imagery_level(result)]
-        + HALF_STEP_LEVEL_SCORES[get_present_tense_level(result)]
-        + THREE_LEVEL_SCORES[get_juxtaposition_level(result)]
-        + IMAGE_COHERENCE_SCORES[get_image_coherence_level(result)]
-        + SHOW_NOT_TELL_SCORES[get_show_not_tell_level(result)]
+    weighted_points = (
+        kigo * CATEGORY_WEIGHTS["kigo"]
+        + kireji * CATEGORY_WEIGHTS["kireji"]
+        + bild * CATEGORY_WEIGHTS["bild"]
+        + gegenwart * CATEGORY_WEIGHTS["gegenwart"]
+        + natur * CATEGORY_WEIGHTS["natur"]
+        + verdichtung * CATEGORY_WEIGHTS["verdichtung"]
     )
+    raw_overall = round((weighted_points / ScoreBreakdown.MAX_POSSIBLE) * 10, 1)
 
-    raw_total = form + quality
-    normalized = round((raw_total / ScoreBreakdown.RAW_MAX) * ScoreBreakdown.OVERALL_MAX)
-    mono_no_aware_bonus = (
-        1
-        if get_mono_no_aware_level(result) == "present"
-        and normalized < ScoreBreakdown.OVERALL_MAX
-        else 0
-    )
-
-    has_hints = bool(suggestions)
-    pre_cap_overall = normalized + mono_no_aware_bonus
-    overall = pre_cap_overall
-    suggestions_cap_applied = False
-    if overall == ScoreBreakdown.OVERALL_MAX and has_hints:
-        overall = ScoreBreakdown.OVERALL_MAX - 1
-        suggestions_cap_applied = True
+    hard_fail_triggered, hard_fail_reason = get_hard_fail(result)
+    overall = min(raw_overall, ScoreBreakdown.HARD_FAIL_CAP) if hard_fail_triggered else raw_overall
+    verdict = derive_verdict(overall)
 
     return ScoreBreakdown(
-        form=form,
-        quality=quality,
-        raw_total=raw_total,
-        normalized=normalized,
-        mono_no_aware_bonus=mono_no_aware_bonus,
-        pre_cap_overall=pre_cap_overall,
-        suggestions_cap_applied=suggestions_cap_applied,
+        kigo=kigo,
+        kireji=kireji,
+        bild=bild,
+        gegenwart=gegenwart,
+        natur=natur,
+        verdichtung=verdichtung,
+        weighted_points=weighted_points,
+        raw_overall=raw_overall,
         overall=overall,
+        verdict=verdict,
+        hard_fail_triggered=hard_fail_triggered,
+        hard_fail_reason=hard_fail_reason,
     )
+
+
+def evaluate_strict_result(score_breakdown: ScoreBreakdown) -> bool:
+    return score_breakdown.overall >= ScoreBreakdown.STRICT_PASS_THRESHOLD

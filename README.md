@@ -134,6 +134,13 @@ haiku --debug
 haiku --quiet
 ```
 
+Mit KI-Prüfung bleibt `--quiet` absichtlich nicht komplett stumm, sondern
+gibt nur `VERDICT SCORE/10` aus:
+
+```bash
+haiku --check --quiet
+```
+
 ### Pipe-Modus
 
 macOS / Linux:
@@ -150,62 +157,72 @@ Windows PowerShell:
 
 ## Bewertungssystem
 
-Die CLI trennt zwischen **Form**, **Haiku-Qualität** und **Gesamtwertung**.
+Die Strukturprüfung und die Haiku-Bewertung sind getrennt:
 
-- **Form**: `0` oder `2` Punkte, je nachdem ob die 5-7-5-Struktur erfüllt ist.
-- **Haiku-Qualität**: bis zu `12` Punkte aus sieben Merkmalen.
-- **Gesamtwertung**: aus `14` Rohpunkten auf `10` normalisiert.
+- **Form**: Die 5-7-5-Silbenprüfung wird lokal und deterministisch entschieden.
+- **Inhalt**: Die KI liefert Kategorie-Scores und Begründungen im v2-JSON-Schema.
+- **Gesamtwertung**: Das CLI berechnet `overall_score` immer lokal neu und
+  vertraut nicht blind auf modellgelieferte Scores oder Verdicts.
 
-### Qualitätsmerkmale
+### Bewertete Kategorien
 
-Die KI bewertet diese Felder nicht mehr nur binär, sondern in Stufen:
-
-| Merkmal | Stufen | Max |
+| Kategorie | Bereich | Gewicht |
 | --- | --- | --- |
-| Kigo | `absent`, `weak`, `strong` | 2 |
-| Kireji | `absent`, `weak`, `strong` | 1 |
-| Naturbild | `absent`, `weak`, `strong` | 2 |
-| Gegenwart | `absent`, `weak`, `strong` | 1 |
-| Gegenüberstellung | `absent`, `weak`, `strong` | 2 |
-| Bildkohärenz | `fragmented`, `loosely_connected`, `coherent` | 2 |
-| Show vs. Tell | `telling`, `mixed`, `showing` | 2 |
+| Kigo | `0-3` | `25%` |
+| Kireji | `0-3` | `20%` |
+| Bild / Sinneseindruck | `0-3` | `25%` |
+| Gegenwart | `0-2` | `10%` |
+| Naturbezug | `0-2` | `10%` |
+| Verdichtung | `0-2` | `10%` |
 
 ### Formel
 
 ```text
-raw_total = form + quality
-normalized = round((raw_total / 14) * 10)
+overall_score = round(
+  ((kigo*25 + kireji*20 + bild*25 + gegenwart*10 + natur*10 + verdichtung*10) / 270) * 10,
+  1
+)
 ```
 
-Optional kommt **Mono no aware** als Bonus dazu:
+Wenn `hard_fail.triggered = true`, wird `overall_score` auf maximal `3.0`
+gedeckelt.
 
-```text
-if mono_no_aware == "present" and normalized < 10:
-    overall = normalized + 1
-else:
-    overall = normalized
-```
+Wichtig: Die **Formel ist die Quelle der Wahrheit**. Beispielwerte im Prompt
+oder in der Doku dienen nur der Kalibrierung.
 
-Wichtig: Eine **10/10** wird nur dann auf **9/10** reduziert, wenn gleichzeitig
-noch `suggestions` vorhanden sind. Die Abstufung ist also **nicht pauschal**,
-sondern signalisiert: formal und qualitativ sehr stark, aber noch nicht ganz
-abschließend.
+### Verdict-Skala
+
+| Score | Verdict |
+| --- | --- |
+| `8.0-10.0` | `MEISTERHAFT` |
+| `6.5-7.9` | `GUT` |
+| `4.5-6.4` | `ORDENTLICH` |
+| `2.5-4.4` | `SCHWACH` |
+| `0.0-2.4` | `UNGENÜGEND` |
+
+### Strict-Modus
+
+- `--strict` besteht nur bei gültigem `5-7-5` **und** `overall_score >= 6.5`.
+- `4.5-6.4` bleibt textlich `ORDENTLICH`, endet unter `--strict` aber mit
+  Exit-Code `1`.
+- Wenn keine KI-Bewertung ausgeführt werden kann, schlägt `--strict` ebenfalls
+  fehl.
 
 ### Beispielausgabe
 
 ```text
-Form: 2/2
-✓ Silben (Programm): gültiges 5-7-5
-
-Haiku-Qualität: 10.5/12
-• Kigo: strong - April verankert die Szene klar im Frühling.
-• Bildkohärenz: coherent - Alle Bilder greifen ineinander.
-
-Gesamtwertung: 9/10
-• Mono no aware: present - Vergänglichkeit schwingt still mit.
-• Normalisiert: 9/10
-• Mono no aware Bonus: +1
-• Hinweis-Deckel: 10/10 wurde wegen offener Hinweise auf 9/10 reduziert.
+✓ Verdict: GUT (7.0/10)
+Form: gültiges 5-7-5
+Reasoning: Kategorie für Kategorie geprüft.
+• Kigo: 2/3 - Wort: Kirschblüten | Jahreszeit: Frühling | Klares Kigo.
+• Kireji: 2/3 - Schnitt: nach Zeile 1 | Saubere Zäsur.
+• Bild / Sinneseindruck: 2/3 - Konkrete Bilder: Kirschblüten, Regen, Moos | Konkrete Bilder tragen das Haiku.
+• Gegenwart: 2/2 - Im Augenblick gehalten.
+• Naturbezug: 2/2 - Naturelemente: Kirschblüten, Regen, Moos | Starker Naturbezug.
+• Verdichtung: 1/2 - Knapper Ausdruck.
+Gewichtete Punkte: 190/270
+Gesamtwertung: 7.0/10
+Hard Fail: Nein
 ```
 
 ## KI-Prüfung
@@ -357,5 +374,7 @@ Repository.
 
 - Das CLI ist derzeit auf **deutsche Haikus** ausgelegt.
 - Die 5-7-5-Prüfung erfolgt lokal und deterministisch.
-- Die traditionelle Haiku-Bewertung (`Kigo`, `Kireji`, `Naturbild`,
-`Gegenüberstellung` usw.) ist modellgestützt.
+- Die traditionelle Haiku-Bewertung ist modellgestützt, aber das finale
+  Scoring wird lokal im CLI berechnet.
+- Die frühere deutsche 10-14-Silben-Regel ist bewusst entfernt; Standard bleibt
+  strikt `5-7-5`.

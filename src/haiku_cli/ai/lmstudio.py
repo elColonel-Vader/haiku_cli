@@ -10,7 +10,8 @@ from haiku_cli.ai.json_response import parse_model_json_dict
 from haiku_cli.ai.prompts import build_system_prompt
 
 # 127.0.0.1 avoids macOS resolving "localhost" to ::1 while the server listens on IPv4 only.
-# Override with LMSTUDIO_BASE_URL, e.g. http://192.168.x.x:1234/v1 when the CLI runs on another host.
+# Override with LMSTUDIO_BASE_URL, e.g. http://192.168.x.x:1234/v1
+# when the CLI runs on another host.
 DEFAULT_LMSTUDIO_BASE_URL = "http://127.0.0.1:1234/v1"
 DEFAULT_LMSTUDIO_API_KEY = "lm-studio"
 # Identifier as shown under LM Studio "Loaded Models" (OpenAI-compatible /v1/chat/completions).

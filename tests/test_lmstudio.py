@@ -33,7 +33,7 @@ def test_run_lmstudio_check_uses_default_model(monkeypatch) -> None:
                     "choices": [
                         {
                             "message": {
-                                "content": '{"kigo":{"present":true},"kireji":{"present":false}}'
+                                "content": '{"kigo":{"score":2},"kireji":{"score":1}}'
                             }
                         }
                     ]
@@ -45,7 +45,7 @@ def test_run_lmstudio_check_uses_default_model(monkeypatch) -> None:
 
     result = run_lmstudio_check("Prompt", strict=False, fix=False)
 
-    assert result["kigo"]["present"] is True
+    assert result["kigo"]["score"] == 2
     assert calls[0][0].endswith("/chat/completions")
     assert '"model": "google/gemma-4-e4b"' in calls[0][1]
 

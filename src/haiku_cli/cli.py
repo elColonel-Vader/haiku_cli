@@ -11,7 +11,13 @@ from haiku_cli.ai.runner import (
 )
 from haiku_cli.ai.suggestions import sanitize_suggestions
 from haiku_cli.input import read_haiku_text
-from haiku_cli.output import render_ai_feedback, render_analysis, render_error, render_warnings
+from haiku_cli.output import (
+    render_ai_feedback,
+    render_analysis,
+    render_error,
+    render_quiet_ai_feedback,
+    render_warnings,
+)
 from haiku_cli.parser import ParseError, parse_haiku
 from haiku_cli.scoring import ScoreBreakdown, compute_score
 from haiku_cli.validate import validate_haiku
@@ -22,7 +28,11 @@ from haiku_cli.validate import validate_haiku
 @click.option("--check", is_flag=True, help="Führt zusätzlich eine KI-Haikuprüfung aus.")
 @click.option("--fix", is_flag=True, help="Liefert KI-Verbesserungsvorschläge.")
 @click.option("--strict", is_flag=True, help="Bewertet traditionelle Haiku-Regeln strenger.")
-@click.option("--quiet", is_flag=True, help="Keine Ausgabe, nur Exit-Code.")
+@click.option(
+    "--quiet",
+    is_flag=True,
+    help="Unterdrückt Standardausgabe; mit --check oder --fix nur Verdict + Score.",
+)
 @click.option("--debug", is_flag=True, help="Zeigt Silbenaufschlüsselung pro Wort.")
 @click.option(
     "--provider",
@@ -68,14 +78,16 @@ def main(
                 list(ai_result.get("suggestions") or []),
                 valid_structure=analysis.valid_structure,
             )
-            score_breakdown = compute_score(
-                analysis, ai_result, suggestions=list(ai_result.get("suggestions") or [])
-            )
+            score_breakdown = compute_score(ai_result)
             ai_result["overall_score"] = score_breakdown.overall
+            ai_result["verdict"] = score_breakdown.verdict
         except (ProviderUnavailable, AIResponseError) as exc:
             warnings.append(str(exc))
 
-    if not quiet:
+    if quiet:
+        if ai_result is not None and score_breakdown is not None and (check or fix or strict):
+            render_quiet_ai_feedback(score_breakdown)
+    else:
         render_analysis(analysis, debug=debug)
         if ai_result is not None and score_breakdown is not None:
             render_ai_feedback(
@@ -87,7 +99,9 @@ def main(
         render_warnings(warnings)
 
     exit_code = 0 if analysis.valid_structure else 1
-    if strict and ai_result is not None and not evaluate_strict_result(ai_result):
+    if strict and (
+        ai_result is None or score_breakdown is None or not evaluate_strict_result(score_breakdown)
+    ):
         exit_code = 1
 
     raise SystemExit(exit_code)

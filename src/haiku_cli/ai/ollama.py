@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from urllib import request
 from typing import Any
+from urllib import request
 
 from haiku_cli.ai import ProviderUnavailable
 from haiku_cli.ai.json_response import parse_model_json_dict

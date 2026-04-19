@@ -15,11 +15,11 @@ def test_parse_plain_json() -> None:
 def test_parse_json_in_markdown_fence() -> None:
     raw = """Hier ist das Ergebnis:
 ```json
-{"kigo": {"present": true, "word": "x", "season": "Frühling"}}
+{"kigo": {"score": 2, "word": "Kirschblüte", "season": "Frühling"}}
 ```
 """
     out = parse_model_json_dict(raw, source="Test")
-    assert out["kigo"]["present"] is True
+    assert out["kigo"]["score"] == 2
 
 
 def test_parse_json_after_prose() -> None:
@@ -50,13 +50,13 @@ def test_parse_trailing_commas() -> None:
 
 
 def test_parse_single_element_array_wrapper() -> None:
-    raw = '[{"kigo": {"present": true, "word": "", "season": ""}}]'
+    raw = '[{"kigo": {"score": 1, "word": null, "season": null}}]'
     out = parse_model_json_dict(raw, source="Test")
-    assert out["kigo"]["present"] is True
+    assert out["kigo"]["score"] == 1
 
 
 def test_parse_double_encoded_json_string() -> None:
-    inner = '{"mono_no_aware": {"present": false, "description": ""}}'
+    inner = '{"hard_fail": {"triggered": false, "reason": null}}'
     raw = json.dumps(inner)
     out = parse_model_json_dict(raw, source="Test")
-    assert out["mono_no_aware"]["present"] is False
+    assert out["hard_fail"]["triggered"] is False

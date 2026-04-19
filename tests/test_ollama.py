@@ -15,7 +15,7 @@ def test_run_ollama_check_uses_default_model(monkeypatch) -> None:
             assert kwargs["messages"]
             assert kwargs["options"] == {"temperature": 0.1}
             assert kwargs["format"] == "json"
-            return {"message": {"content": "{}"}}
+            return {"message": {"content": '{"kigo":{"score":2}}'}}
 
     monkeypatch.setitem(sys.modules, "ollama", SimpleNamespace(Client=FakeClient))
 
@@ -25,7 +25,7 @@ def test_run_ollama_check_uses_default_model(monkeypatch) -> None:
         fix=False,
     )
 
-    assert result == {}
+    assert result == {"kigo": {"score": 2}}
     assert calls[0]["model"] == DEFAULT_OLLAMA_MODEL
     assert calls[0]["messages"][1]["content"] == "Promptinhalt"
 
@@ -41,7 +41,7 @@ def test_run_ollama_check_falls_back_to_http_when_package_missing(monkeypatch) -
             return False
 
         def read(self):
-            return b'{"message": {"content": "{\\"ok\\": true}"}}'
+            return b'{"message": {"content": "{\\"kigo\\": {\\"score\\": 1}}"}}'
 
     captured: dict = {}
 
@@ -60,7 +60,7 @@ def test_run_ollama_check_falls_back_to_http_when_package_missing(monkeypatch) -
         fix=False,
     )
 
-    assert result == {"ok": True}
+    assert result == {"kigo": {"score": 1}}
     assert captured["url"].endswith("/api/chat")
     assert captured["method"] == "POST"
     assert captured["timeout"] == 120
