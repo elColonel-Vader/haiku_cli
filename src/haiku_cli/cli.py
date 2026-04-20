@@ -37,9 +37,9 @@ from haiku_cli.validate import validate_haiku
 @click.option(
     "--provider",
     type=click.Choice(["auto", "ollama", "lmstudio", "claude"], case_sensitive=False),
-    default="auto",
+    default="lmstudio",
     show_default=True,
-    help="KI-Provider für --check und --fix. auto prüft zuerst LM Studio, dann Ollama.",
+    help="KI-Provider für --check und --fix. auto versucht LM Studio und fällt auf Ollama zurück.",
 )
 @click.option("--model", default=None, help="Optionaler Modellname für den KI-Provider.")
 def main(

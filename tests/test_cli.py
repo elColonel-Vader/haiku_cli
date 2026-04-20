@@ -106,6 +106,7 @@ def test_cli_help_mentions_quiet_summary_mode() -> None:
     assert result.exit_code == 0
     assert "Führt zusätzlich eine KI-Haikuprüfung aus." in result.output
     assert "Verdict + Score." in result.output
+    assert "[default: lmstudio]" in result.output
     assert "lmstudio" in result.output
 
 
@@ -166,7 +167,20 @@ def test_cli_renders_numeric_category_scores_and_hard_fail(monkeypatch) -> None:
     assert "Aphorismus statt Haiku" in result.output
 
 
-def test_cli_uses_auto_provider_by_default(monkeypatch) -> None:
+def test_cli_uses_lmstudio_provider_by_default(monkeypatch) -> None:
+    runner = CliRunner()
+
+    def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
+        assert provider == "lmstudio"
+        return _result(kigo=0, kireji=0, bild=0, gegenwart=0, natur=0, verdichtung=0)
+
+    monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
+
+    result = runner.invoke(main, ["--check"], input=VALID_HAIKU)
+    assert result.exit_code == 0
+
+
+def test_cli_accepts_explicit_auto_provider(monkeypatch) -> None:
     runner = CliRunner()
 
     def fake_run_ai_check(lines, analysis, *, provider, strict, fix, model):
@@ -175,7 +189,7 @@ def test_cli_uses_auto_provider_by_default(monkeypatch) -> None:
 
     monkeypatch.setattr(cli_module, "run_ai_check", fake_run_ai_check)
 
-    result = runner.invoke(main, ["--check"], input=VALID_HAIKU)
+    result = runner.invoke(main, ["--check", "--provider", "auto"], input=VALID_HAIKU)
     assert result.exit_code == 0
 
 

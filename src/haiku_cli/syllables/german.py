@@ -15,6 +15,9 @@ MARKER_RE = re.compile(r"[·-]")
 VOWELS = set("aeiouyäöü")
 DIPHTHONGS = {"aa", "au", "äu", "ee", "ei", "eu", "ie", "oo"}
 KNOWN_COUNTS: dict[str, int] = {
+    "apfel": 2,
+    "apfelblüte": 4,
+    "blüte": 2,
     "donaudampfschiff": 5,
     "frühling": 2,
     "herbstwind": 2,
@@ -114,7 +117,7 @@ def analyze_word(word: str, *, allow_compounds: bool = True) -> WordAnalysis:
 
     normalized = _normalize(word)
     if normalized in KNOWN_COUNTS:
-        count, display = _count_pyphen(word)
+        display = _hyphenate(word)
         return WordAnalysis(
             original=word,
             normalized=normalized,
@@ -128,7 +131,7 @@ def analyze_word(word: str, *, allow_compounds: bool = True) -> WordAnalysis:
         if parts and len(parts) > 1:
             analyses = tuple(analyze_word(part, allow_compounds=False) for part in parts)
             total = sum(part.syllables for part in analyses)
-            if total > 0:
+            if total > 0 and "".join(parts).casefold() == normalized:
                 return WordAnalysis(
                     original=word,
                     normalized=normalized,

@@ -95,6 +95,16 @@ Für Entwicklung:
 python -m pip install -e ".[ai,dev]"
 ```
 
+Für breitere deutsche Compound-Erkennung:
+
+```bash
+python -m pip install -e ".[compounds]"
+```
+
+Bevorzugt wird dafür `charsplit-fst`. Je nach Python-/Plattform-Kombination
+kann dafür ein Source-Build nötig sein; dann brauchst du lokal zusätzlich eine
+Rust-Toolchain.
+
 Wichtig: In dieser Variante funktioniert `haiku` nur, solange die virtuelle
 Umgebung aktiv ist.
 
@@ -230,23 +240,23 @@ Hard Fail: Nein
 Die KI-Funktionen sind optional. Das CLI funktioniert auch ohne lokale
 Server oder Claude.
 
-### Provider `auto` (Standard)
+### Provider `lmstudio` (Standard)
 
-Ohne `--provider` nutzt das CLI **`auto`**: Es versucht zuerst **LM Studio**
-(OpenAI-kompatible Base-URL, Standard im CLI: `http://127.0.0.1:1234/v1`; siehe
-[LM Studio OpenAI-Compat](https://lmstudio.ai/docs/developer/openai-compat)),
-und wenn dieser nicht erreichbar ist oder fehlschlägt, **Ollama**. So kannst du
-zwischen den beiden wechseln, ohne jedes Mal explizit den Provider zu setzen.
+Ohne `--provider` nutzt das CLI **`lmstudio`**. Das ist der bevorzugte
+Standardfall für lokale Checks.
 
 ```bash
 haiku --check
 ```
 
-Explizit:
+Wenn du stattdessen eine automatische Fallback-Kette willst:
 
 ```bash
 haiku --check --provider auto
 ```
+
+`auto` versucht zuerst **LM Studio** und fällt bei Nichterreichbarkeit oder
+Fehlschlag auf **Ollama** zurück.
 
 ### LM Studio
 
@@ -273,7 +283,8 @@ google/gemma-4-e4b
 haiku --check --provider lmstudio
 ```
 
-Oder über **`auto`** (siehe oben).
+Oder über **`auto`** (siehe oben), wenn du den Ollama-Fallback ausdrücklich
+aktivieren willst.
 
 Basis-URL anpassen (anderer Port oder anderer Host):
 
