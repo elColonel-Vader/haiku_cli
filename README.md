@@ -101,9 +101,9 @@ Für breitere deutsche Compound-Erkennung:
 python -m pip install -e ".[compounds]"
 ```
 
-Bevorzugt wird dafür `charsplit-fst`. Je nach Python-/Plattform-Kombination
-kann dafür ein Source-Build nötig sein; dann brauchst du lokal zusätzlich eine
-Rust-Toolchain.
+Ab Python 3.12 wird dafür `charsplit-fst` genutzt. Unter Python 3.11 fällt das
+Extra auf `compound-split` zurück, damit die deklarierte Python-3.11-Unterstützung
+installierbar bleibt.
 
 Wichtig: In dieser Variante funktioniert `haiku` nur, solange die virtuelle
 Umgebung aktiv ist.
@@ -302,7 +302,14 @@ haiku --check --provider lmstudio --model google/gemma-4-e4b
 ```
 
 Ohne `--model` nutzt das CLI **`google/gemma-4-e4b`**. Abweichende Bezeichnung in
-deiner LM-Studio-Liste per `--model "<id>"` setzen.
+deiner LM-Studio-Liste per `--model "<id>"` setzen. Die Anfrage nutzt LM Studios
+strukturiertes JSON-Schema; falls ein Modell die Antwort trotzdem wegen des
+Tokenlimits abschneidet, kann das Limit angepasst werden:
+
+```bash
+export LMSTUDIO_MAX_TOKENS=2400
+haiku --strict --provider lmstudio
+```
 
 ### Ollama
 

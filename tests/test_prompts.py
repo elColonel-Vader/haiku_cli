@@ -19,5 +19,7 @@ def test_build_user_prompt_includes_program_syllable_context() -> None:
     assert "Hard-Fail-Bedingungen" in prompt
     assert '"hard_fail"' in prompt
     assert '"verdict"' in prompt
+    assert "Schritt für Schritt" not in prompt
+    assert "knappe Gesamtbegründung" in prompt
     assert "strong | weak | absent" not in prompt
     assert '"image_coherence"' not in prompt

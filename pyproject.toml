@@ -25,7 +25,8 @@ ai = [
   "ollama",
 ]
 compounds = [
-  "charsplit-fst",
+  "compound-split; python_version < '3.12'",
+  "charsplit-fst; python_version >= '3.12'",
 ]
 dev = [
   "pytest",

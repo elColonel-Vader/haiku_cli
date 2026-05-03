@@ -1,6 +1,10 @@
 version = 1
 revision = 3
 requires-python = ">=3.11"
+resolution-markers = [
+    "python_full_version >= '3.12'",
+    "python_full_version < '3.12'",
+]
 
 [[package]]
 name = "annotated-types"
@@ -50,6 +54,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/af/2d/7bf41579a8986e348fa033a31cdd0e4121114f6bce2457e8876010b092dd/certifi-2026.2.25.tar.gz", hash = "sha256:e887ab5cee78ea814d3472169153c2d12cd43b14bd03329a39a9c6e2e80bfba7", size = 155029, upload-time = "2026-02-25T02:54:17.342Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9a/3c/c17fb3ca2d9c3acff52e30b309f538586f9f5b9c9cf454f3845fc9af4881/certifi-2026.2.25-py3-none-any.whl", hash = "sha256:027692e4402ad994f1c42e52a4997a9763c646b73e4096e4d5d6db8af1d6f0fa", size = 153684, upload-time = "2026-02-25T02:54:15.766Z" },
+]
+
+[[package]]
+name = "charsplit-fst"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/22/dc/bd1919a699e44809284ffdfcc623384fc3c93e600a695e0152e28562ad49/charsplit_fst-0.1.3.tar.gz", hash = "sha256:7747697537d08fdef57e312e9b5cb6b6788d7c50b6cb8a5a8d98b13357c9c6e8", size = 8790500, upload-time = "2026-02-18T19:11:05.394Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ce/3d/d86bf37ac3ad364d4628ef8663420c14c4c1268ec229d6fb117f8062f859/charsplit_fst-0.1.3-cp312-abi3-macosx_11_0_arm64.whl", hash = "sha256:0c021b8e5b5427b46732642bb216266caefddf4053a172e9c31a9811d234eac2", size = 9136920, upload-time = "2026-02-18T19:10:56.263Z" },
+    { url = "https://files.pythonhosted.org/packages/77/4a/0b31fb3d9da1f3fe29c15621949789d02b97485d9848874a36c0fb42699c/charsplit_fst-0.1.3-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:ef788e71ea47746669d8430cd9ceacad44ff149e62bcd12b22242093143c0cbf", size = 9028376, upload-time = "2026-02-18T19:10:59.004Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/48/3d702cb309a0f06b3ca196f38821b58f051a751f514df7d4cc52b5c0b313/charsplit_fst-0.1.3-cp312-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:2de05f541dd2ee34197ef9943cb38c2e4fd2ba3956df391e1e2d1fc48f63b91a", size = 9102049, upload-time = "2026-02-18T19:11:01.042Z" },
+    { url = "https://files.pythonhosted.org/packages/15/38/736ec03ebbd180d1ef495e48791b9a3c814e93068fbf1f847175f6b81df2/charsplit_fst-0.1.3-cp312-abi3-win_amd64.whl", hash = "sha256:609cfcd214bbd944710da2921e820875b6bd19d289cf503bacf8bb07c5726077", size = 8898094, upload-time = "2026-02-18T19:11:03.344Z" },
 ]
 
 [[package]]
@@ -125,7 +141,8 @@ ai = [
     { name = "ollama" },
 ]
 compounds = [
-    { name = "compound-split" },
+    { name = "charsplit-fst", marker = "python_full_version >= '3.12'" },
+    { name = "compound-split", marker = "python_full_version < '3.12'" },
 ]
 dev = [
     { name = "pytest" },
@@ -135,8 +152,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'ai'" },
+    { name = "charsplit-fst", marker = "python_full_version >= '3.12' and extra == 'compounds'" },
     { name = "click" },
-    { name = "compound-split", marker = "extra == 'compounds'" },
+    { name = "compound-split", marker = "python_full_version < '3.12' and extra == 'compounds'" },
     { name = "ollama", marker = "extra == 'ai'" },
     { name = "pyphen" },
     { name = "pytest", marker = "extra == 'dev'" },

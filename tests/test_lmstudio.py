@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from haiku_cli.ai import ProviderUnavailable
-from haiku_cli.ai.lmstudio import run_lmstudio_check
+from haiku_cli.ai import AIResponseError, ProviderUnavailable
+from haiku_cli.ai.lmstudio import DEFAULT_LMSTUDIO_MAX_TOKENS, run_lmstudio_check
 
 
 class _FakeResponse:
@@ -47,7 +47,13 @@ def test_run_lmstudio_check_uses_default_model(monkeypatch) -> None:
 
     assert result["kigo"]["score"] == 2
     assert calls[0][0].endswith("/chat/completions")
-    assert '"model": "google/gemma-4-e4b"' in calls[0][1]
+    payload = json.loads(calls[0][1])
+    assert payload["model"] == "google/gemma-4-e4b"
+    assert payload["max_tokens"] == DEFAULT_LMSTUDIO_MAX_TOKENS
+    assert payload["stream"] is False
+    assert payload["response_format"]["type"] == "json_schema"
+    assert payload["response_format"]["json_schema"]["strict"] is True
+    assert payload["response_format"]["json_schema"]["schema"]["additionalProperties"] is False
 
 
 def test_run_lmstudio_check_raises_when_server_unavailable(monkeypatch) -> None:
@@ -58,3 +64,47 @@ def test_run_lmstudio_check_raises_when_server_unavailable(monkeypatch) -> None:
 
     with pytest.raises(ProviderUnavailable):
         run_lmstudio_check("Prompt", strict=False, fix=False)
+
+
+def test_run_lmstudio_check_uses_max_tokens_env(monkeypatch) -> None:
+    captured: dict = {}
+
+    def fake_urlopen(req, timeout=0):
+        captured["payload"] = json.loads(req.data.decode("utf-8"))
+        return _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"kigo":{"score":2},"kireji":{"score":1}}'
+                        }
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setenv("LMSTUDIO_MAX_TOKENS", "2400")
+    monkeypatch.setattr("haiku_cli.ai.lmstudio.request.urlopen", fake_urlopen)
+
+    run_lmstudio_check("Prompt", strict=False, fix=False)
+
+    assert captured["payload"]["max_tokens"] == 2400
+
+
+def test_run_lmstudio_check_reports_length_cutoff(monkeypatch) -> None:
+    def fake_urlopen(req, timeout=0):
+        return _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "finish_reason": "length",
+                        "message": {"content": '```json\n{"reasoning": "abgeschnitten"'},
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("haiku_cli.ai.lmstudio.request.urlopen", fake_urlopen)
+
+    with pytest.raises(AIResponseError, match="Tokenlimits abgeschnitten"):
+        run_lmstudio_check("Prompt", strict=True, fix=False)

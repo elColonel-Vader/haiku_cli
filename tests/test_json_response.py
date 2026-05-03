@@ -60,3 +60,10 @@ def test_parse_double_encoded_json_string() -> None:
     raw = json.dumps(inner)
     out = parse_model_json_dict(raw, source="Test")
     assert out["hard_fail"]["triggered"] is False
+
+
+def test_parse_rejects_truncated_fenced_json() -> None:
+    raw = '```json\n{"reasoning": "abgeschnitten", "kigo": {"score": 3}\n'
+
+    with pytest.raises(AIResponseError):
+        parse_model_json_dict(raw, source="Test")

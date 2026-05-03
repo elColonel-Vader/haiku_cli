@@ -14,7 +14,7 @@ def build_system_prompt(*, strict: bool, fix: bool) -> str:
         "Du bist ein strenger Haiku-Meister mit tiefem Verständnis für die japanische "
         "Haiku-Tradition. Bewerte das folgende Haiku KRITISCH. Sei NICHT nachsichtig. "
         "Ein gutes Haiku erreicht 7+/10. Die meisten Haiku sind mittelmäßig (4-6). "
-        "Antworte AUSSCHLIESSLICH in JSON. Sprache für Beschreibungen: Deutsch. "
+        "Antworte AUSSCHLIESSLICH in kompaktem JSON. Sprache für Beschreibungen: Deutsch. "
         "Die vom Programm gelieferte Silbenanalyse ist verbindlich und darf nicht "
         "widersprochen werden. Die 5-7-5-Prüfung wird lokal und programmatisch "
         "entschieden, nicht vom Modell. Nutze die unten definierte Bewertungsrubrik "
@@ -130,12 +130,12 @@ Kalibrierungsbeispiele:
    Geduld ist Pflaster.
    Erwartung: klar erkennbares Haiku mit abstrakter Schwäche; mittlerer bis guter Bereich.
 
-Denke Schritt für Schritt nach, bevor du das JSON erstellst.
-Gib deine Analyse nur im Feld "reasoning" wieder, nicht außerhalb des JSON.
+Gib eine knappe Gesamtbegründung nur im Feld "reasoning" wieder, nicht außerhalb des JSON.
+Halte alle Notizen kurz, damit die JSON-Antwort vollständig geschlossen wird.
 
 Antworte ausschließlich in JSON mit diesem Schema:
 {{
-  "reasoning": "Schritt-für-Schritt-Analyse in Deutsch",
+  "reasoning": "knappe Gesamtbegründung in Deutsch",
   "kigo": {{
     "score": 0,
     "word": null,
